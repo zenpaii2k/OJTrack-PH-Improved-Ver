@@ -392,6 +392,11 @@ fieldset.form-section legend {
 
 .legal-link-btn:hover { opacity: 0.8; }
 
+#legal-understand-btn {
+    display: block;
+    margin: 20px auto 0 auto;
+}
+
 /* ─── ERROR BANNER ───────────────────────────────────────────── */
 .error-banner {
     background: var(--danger-dim);

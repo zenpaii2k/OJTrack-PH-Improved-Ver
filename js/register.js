@@ -123,7 +123,7 @@ function setupLegalHandlers() {
     function openLegal(type) {
         const data = LEGAL[type];
         legalTitle.textContent = data.title;
-        legalCont.textContent   = data.content; // Legal content is authored by us, not user input
+        legalCont.innerHTML  = data.content; // Legal content is authored by us, not user input
         legalModal.classList.add('show');
         legalModal.style.display = 'flex';
     }
