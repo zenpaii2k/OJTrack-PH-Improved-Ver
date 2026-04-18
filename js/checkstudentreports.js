@@ -13,9 +13,7 @@ import {
     sanitizeText,
     formatTimestamp,
 } from '../js/theme.js';
-
 import { setupNotificationSystem } from '../js/notifications.js';
-
 
 initTheme();
 
@@ -242,106 +240,6 @@ async function fetchUserProfile(user) {
             if (document.getElementById('user-full-email')) document.getElementById('user-full-email').innerText = user.email;
         } 
     } catch (e) { console.error("Profile Error:", e); }
-}
-
-function setupNotificationSystem(user) {
-    let activeNotifications = [];
-
-    const updateNotifUI = () => {
-        const notifCount = document.getElementById('notif-count');
-        const notifList = document.getElementById('notif-list');
-
-        const dismissed = JSON.parse(
-            localStorage.getItem(`sup_dismissed_${user.uid}`) || "[]"
-        );
-
-        const visible = activeNotifications.filter(n => !dismissed.includes(n.id));
-
-        if (notifCount) {
-            notifCount.innerText = visible.length;
-            notifCount.style.display = visible.length ? "flex" : "none";
-        }
-
-        if (notifList) {
-            if (visible.length === 0) {
-                notifList.innerHTML = `<div class="notif-empty">No new alerts.</div>`;
-                return;
-            }
-
-            notifList.innerHTML = visible
-                .sort((a, b) => b.createdAt - a.createdAt)
-                .map(n => `
-                    <div class="notif-item">
-                        <div style="font-weight:bold;">
-                            ${n.title}
-                        </div>
-                        <div style="font-size:0.85rem;">
-                            ${n.message}
-                        </div>
-                        <button onclick="dismissNotif('${n.id}')">×</button>
-                    </div>
-                `).join("");
-        }
-    };
-
-    window.dismissNotif = (id) => {
-        const key = `sup_dismissed_${user.uid}`;
-        const dismissed = JSON.parse(localStorage.getItem(key) || "[]");
-        if (!dismissed.includes(id)) {
-            dismissed.push(id);
-            localStorage.setItem(key, JSON.stringify(dismissed));
-        }
-
-        activeNotifications = activeNotifications.filter(n => n.id !== id);
-        updateNotifUI();
-    };
-
-    // checklist
-
-    onSnapshot(collection(db, "checklist"), (snap) => {
-        snap.docChanges().forEach(change => {
-            const d = change.doc.data();
-            const id = `chk_${change.doc.id}`;
-
-            if (!state.myStudentUids.has(d.uid)) return;
-
-            if ((d.status === "Approved" || d.status === "Rejected")) {
-                if (!activeNotifications.find(n => n.id === id)) {
-                    activeNotifications.push({
-                        id,
-                        createdAt: Date.now(),
-                        title: "📄 Document Update",
-                        message: `${d.formKey} was ${d.status}`
-                    });
-                }
-            }
-        });
-
-        updateNotifUI();
-    });
-
-    // feedback
-    onSnapshot(
-        query(collection(db, "students", user.uid, "feedback"), orderBy("timestamp", "desc"), limit(10)),
-        (snap) => {
-            snap.docChanges().forEach(change => {
-                const id = `fb_${change.doc.id}`;
-
-                if (change.type === "added") {
-                    if (!activeNotifications.find(n => n.id === id)) {
-                        activeNotifications.push({
-                            id,
-                            createdAt: Date.now(),
-                            title: "💬 New Feedback",
-                            message: "You received new adviser feedback"
-                        });
-                    }
-                }
-            });
-
-            updateNotifUI();
-        }
-    );
 }
 
 document.addEventListener('DOMContentLoaded', () => {
