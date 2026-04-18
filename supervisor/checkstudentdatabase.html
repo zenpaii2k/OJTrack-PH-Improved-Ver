@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+     <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OJTrack PH - Student Log System</title>
+     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/checkstudentdatabase.css">
+</head>
+
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Adviser navigation">
+        <div class="sidebar-logo">
+            <a href="supervisordashboard.html">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Adviser Portal</div>
+
+        <nav class="nav-links">
+            <a href="supervisordashboard.html"  class="nav-item active" aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checkstudentreq.html"      class="nav-item">✔️ <span class="nav-label">Requirements</span></a>
+            <a href="batchmanagement.html"      class="nav-item">📁 <span class="nav-label">Manage Batch</span></a>
+            <a href="checkstudentreports.html"  class="nav-item">📄 <span class="nav-label">Reports</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="supervisoraccount.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back, Adviser!</h3>
+                <p id="greeting-sub">Here's your students' overview.</p>
+            </div>
+
+            <div class="header-tools">
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                    🔔
+                    <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                    </button>
+                        <div id="notif-modal" class="notif-dropdown">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+                    <div id="profile-menu" class="profile-pop">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Adviser Name</strong>
+                            <p id="user-full-email"></p>
+                        </div>
+                        <hr>
+                        <a href="supervisoraccount.html" class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+    <main class="main-layout">
+        <div class="page-title-container">
+            <h2 class="gold-title">Student Log System</h2>
+            <p class="subtitle">Select a section to view students and their attendance records</p>
+        </div>
+
+        <section id="student-list-view" class="content-section">
+            <div class="filter-card">
+                <label>Select Section/Batch</label>
+                <select id="section-select">
+                    <option value="" disabled selected>Loading Batches...</option>
+                    </select>
+            </div>
+
+            <div class="list-container">
+                <div class="list-header">
+                    <span>Name</span>
+                    <span>Section</span>
+                </div>
+                <div id="student-rows-container">
+                    </div>
+            </div>
+        </section>
+
+        <section id="student-detail-view" class="content-section" style="display:none;">
+            <div class="detail-header">
+                <button id="back-to-list" class="back-btn">← Back to Student List</button>
+                <h2 id="selected-student-display" class="gold-title">Student Name - BSIT</h2>
+                <p class="subtitle">View attendance calendar, log records, and add remarks for this student</p>
+            </div>
+
+            <div class="stats-row-container">
+                <div class="detail-col cal-container">
+                    <h3>Attendance Calendar</h3>
+                    <div class="widget cal-widget">
+                        <div class="cal-header">
+                            <button id="prevMonth" class="cal-nav">&lt;</button>
+                            <h4 id="monthDisplay"></h4>
+                            <button id="nextMonth" class="cal-nav">&gt;</button>
+                        </div>
+                        <div id="mini-calendar" class="cal-grid"></div>
+                    </div>
+                </div>
+
+                <div class="progress-stats-container">
+                    <div class="progress-card-modern">
+                        <span class="progress-label">Approved Progress</span>
+                        <div class="big-stat" id="total-hours">0.0 / 450 hrs</div>
+                        <div class="progress-track">
+                            <div id="progress-bar" class="progress-fill"></div>
+                        </div>
+                        <p id="progress-text" class="percentage-text">0.0% (Verified Hours)</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-grid-lower">
+                <div class="detail-col">
+                    <h3>Attendance Log</h3>
+                    <div id="log-cards-container" class="scroll-area">
+                        </div>
+                </div>
+
+                <div class="detail-col">
+                    <h3>Remarks & Notes</h3>
+                    <div class="remarks-card">
+                        <label>Add Remarks</label>
+                        <textarea id="student-remarks" placeholder="Enter any notes or remarks about this student..."></textarea>
+                        <button id="save-remarks-btn" class="save-btn">Send Remarks</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+</body>
+
+<script type="module" src="/js/checkstudentdatabase.js"></script>
+
+</html>

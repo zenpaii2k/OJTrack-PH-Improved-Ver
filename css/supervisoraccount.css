@@ -1,0 +1,242 @@
+:root {
+    /* Default Dark Theme Variables */
+    --bg-dark: #4c4c4c;
+    --header-bg: #373737;
+    --brand-yellow: #ffd400;
+    --brand-blue: #3b5998;
+    --widget-bg: #8c8c8c;
+    --text-white: #ffffff;
+}
+
+body.light-theme {
+    --bg-main: #f0f2f5;
+    --header-bg: #ffffff;
+    --card-bg: #ffffff;
+    --info-box-bg: #ffffff;
+    --text-main: #333333;
+    --input-bg: #f9f9f9;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.dashboard-header {
+    background-color: var(--header-bg);
+    padding: 10px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap:10px;
+}
+
+.company-header { 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+}
+
+.company-header img { 
+    width: 45px;
+     border-radius: 8px; 
+}
+
+.site-title { 
+    color: var(--brand-yellow); 
+    font-size: 1.8rem; 
+}
+
+.header-tools { 
+    display: flex; 
+    align-items: center; 
+    gap: 20px; 
+}
+
+.search-bar { 
+    position: relative; 
+}
+
+.search-bar input {
+    padding: 8px 30px 8px 15px;
+    border-radius: 20px;
+    border: none;
+}
+
+.search-icon { 
+    position: absolute; 
+    right: 10px; 
+    top: 7px; 
+    color: #333; 
+}
+
+.header-icons a { 
+    text-decoration: none; 
+    font-size: 1.2rem; 
+    color: var(--brand-yellow); 
+    margin-left: 10px; 
+}
+
+.account-layout {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.profile-card {
+    background-color: #d9d9d9;
+    border-radius: 30px;
+    min-height: 250px;
+    position: relative;
+    padding: 40px;
+}
+
+.account-banner {
+    background-color: #3b5998; 
+    color: #ffcc00; 
+    padding: 10px 40px;
+    border-radius: 15px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    position: absolute;
+    top: -20px;
+    left: 20px;
+    border: 2px solid #000;
+}
+
+.account-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+.profile-summary-card {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 30px;
+    position: relative;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    margin-bottom: 20px;
+}
+
+.banner-label {
+    background: #2e66ff;
+    color: var(--brand-yellow);
+    padding: 5px 20px;
+    border-radius: 5px;
+    display: inline-block;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+.summary-content { display: flex; gap: 40px; }
+.avatar-circle { width: 100px; height: 100px; background: #8c8c8c; border-radius: 50%; }
+.info-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex-grow: 1; }
+
+.highlight-yellow { color: var(--brand-yellow); font-weight: bold; font-size: 1.2rem; }
+
+/* Sidebar Navigation */
+.main-content-grid { display: grid; grid-template-columns: 250px 1fr; gap: 20px; }
+
+.settings-list { list-style: none; padding: 0; }
+.nav-item {
+    padding: 15px;
+    cursor: pointer;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    transition: 0.2s;
+}
+
+.nav-item.active { background: var(--sidebar-active); color: white; }
+.nav-item:hover { background: rgba(59, 89, 152, 0.2); }
+
+/* Switch Toggle */
+.switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+.switch input { display: none; }
+.slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc; transition: .4s; border-radius: 20px;
+}
+input:checked + .slider { background-color: var(--brand-yellow); }
+
+.setting-row {
+    display: flex; justify-content: space-between;
+    padding: 15px; border-bottom: 1px solid #555;
+}
+
+.info-display-box { background: var(--card-bg); padding: 30px; border-radius: 15px; 
+}
+
+input[type="text"], input[type="password"] {
+    width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #555;
+    background: #222; color: white;
+}
+
+.settings-list .nav-item.active {
+    background: var(--brand-blue) !important;
+    color: var(--brand-yellow) !important;
+    font-weight: bold;
+}
+
+/* Batch Content Styling */
+.batch-tag {
+    background: var(--brand-blue);
+    color: var(--brand-yellow);
+    padding: 8px 15px;
+    border-radius: 20px;
+    display: inline-block;
+    font-weight: bold;
+    margin-bottom: 20px;
+    border: 1px solid #000;
+}
+
+.student-grid-minimal {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+/* Student Card Aesthetic (Matching Student Dashboard Style) */
+.student-mini-card {
+    background: var(--bg-dark); /* Or var(--card-bg) */
+    border-left: 5px solid var(--brand-yellow);
+    padding: 15px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: transform 0.2s;
+}
+
+.student-mini-card:hover {
+    transform: translateY(-3px);
+    background: #555;
+}
+
+.student-mini-card .avatar {
+    font-size: 1.5rem;
+    background: #444;
+    padding: 10px;
+    border-radius: 50%;
+}
+
+.student-info h4 {
+    margin: 0;
+    color: var(--brand-yellow);
+    font-size: 0.95rem;
+}
+
+.student-info p {
+    margin: 2px 0 0;
+    font-size: 0.8rem;
+    color: #ccc;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.status-online { background: #2ecc71; }

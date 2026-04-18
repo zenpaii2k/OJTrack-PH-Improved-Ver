@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+     <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/account.css">
+    <title>OJTrack PH - Student Profile</title>
+</head>
+
+<body> 
+     <nav class="side-navbar" aria-label="Student navigation">
+        <div class="sidebar-logo">
+            <a href="dashboard.html" title="Go to Dashboard">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Student Portal</div>
+
+        <nav class="nav-links">
+            <a href="dashboard.html"      class="nav-item active"   aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="ojtattendance.html"  class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checklist.html"      class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
+            <a href="generatepdf.html"    class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
+            <a href="feedback.html"       class="nav-item">💬 <span class="nav-label">Feedback</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="account.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <div class="main-wrapper">
+     <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back!</h3>
+                <p id="greeting-sub">Loading your OJT summary…</p>
+            </div>
+
+            <div class="header-tools">
+                <!-- NOTIFICATION BELL -->
+                <div class="notif-wrapper" role="region" aria-label="Notifications">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
+                        🔔
+                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
+                    </button>
+                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE PILL -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+
+                    <div id="profile-menu" class="profile-pop" role="menu">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Student Name</strong>
+                            <p id="user-full-email">email@example.com</p>
+                        </div>
+                        <hr>
+                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="account-layout">
+            <section class="profile-summary-card">
+                <div class="summary-content">
+                    <h2 class="student-name" id="student-name">---</h2>
+                    <div class="info-stats-grid">
+                        <div class="stat-item"><strong>SCHOOL:</strong> <span id="display-school">---</span></div>
+                        <div class="stat-item"><strong>SECTION:</strong> <span id="display-section">---</span></div>
+                        <div class="stat-item"><strong>COMPANY:</strong> <span id="display-company">---</span></div>
+                        <div class="stat-item"><strong>REQUIRED:</strong> <span id="display-req-hours">0 hrs</span></div>
+                    </div>
+                </div>
+
+                <div class="progress-section">
+                    <div class="progress-label-row">
+                        <span>Approved OJT Hours Progress</span>
+                        <span class="progress-percent" id="profile-progress-text">0%</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="profile-progress-fill"></div>
+                    </div>
+                    <p class="comp-hours-text">Approved: <span class="highlight-yellow" id="display-comp-hours">0 hrs</span></p>
+
+                    <div class="progress-label-row" style="margin-top: 15px;">
+                        <span>OJT Requirements Progress</span>
+                        <span class="progress-percent" id="doc-progress-text">0/13 Approved</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="doc-progress-fill" style="background: #2ecc71;"></div> </div>
+                </div>
+            </section>
+
+            <div class="main-content-grid">
+                <aside class="settings-sidebar">
+                    <h3 class="sidebar-header">Account Menu</h3>
+                    <ul class="settings-list">
+                        <li class="nav-item active" data-section="settings-content"><span class="icon">⚙️</span> Settings</li>
+                        <li class="nav-item" data-section="supervisor-content"><span class="icon">👔</span> My Adviser</li>
+                        <li class="nav-item" data-section="batch-content"><span class="icon">👥</span> Batch Info</li>
+                    </ul>
+                </aside>
+
+                <section class="info-display-box">
+                    <div id="settings-content" class="content-section">
+                        <h3 class="section-title">General Settings</h3>
+
+                        <div class="settings-group">
+                            <h4 class="sub-section-title">User Profile</h4>
+                            <form id="profile-info-form" class="profile-details-form">
+                                <div class="form-row">
+                                    <label>Full Name</label>
+                                    <input type="text" id="edit-full-name" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                                </div>
+                                <div class="form-row">
+                                    <label>Designation / Role</label>
+                                    <input type="text" id="edit-designation" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                                </div>
+                                <div class="form-row">
+                                    <label>Official Email</label>
+                                    <input type="email" id="edit-email" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                                </div>
+                                <div class="form-row">
+                                    <label>Active OJT Hours</label>
+                                    <input type="text" id="edit-hours" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="password-box">
+                            <h4 class="sub-section-title">🔒 Change Password</h4>
+                            <form id="password-form">
+                                <div class="password-holder">
+                                    <input type="password" placeholder="New Password" id="new-password" required>
+                                </div>
+                                <div class="password-holder">
+                                    <input type="password" placeholder="Confirm New Password" id="confirm-password" required>
+                                </div>
+                                <button class="submit-pass" type="submit">Update Password</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div id="supervisor-content" class="content-section" style="display:none;">
+                        <h3 class="section-title">OJT Adviser</h3>
+                        <div class="supervisor-card">
+                            <h2 id="sup-name">You aren't enrolled in a batch yet. Contact your OJT coordinator.</h2>
+                            <p id="sup-org" class="highlight-yellow">---</p>
+                            <hr class="card-divider">
+                            <div class="sup-details-grid">
+                                <div class="detail-item"><strong>Staff ID:</strong> <span id="sup-id">---</span></div>
+                                <div class="detail-item"><strong>Handled Courses:</strong> <span id="sup-class">---</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="batch-content" class="content-section" style="display:none;">
+                        <h3 class="section-title">Batch Info</h3>
+                        
+                        <div class="supervisor-card">
+                            <h2 id="batch-sup-name">Loading...</h2>
+                            <p class="highlight-yellow">Batch Head / Coordinator</p>
+                            <hr class="card-divider">
+                            <div class="sup-details-grid">
+                                <div class="detail-item"><strong>Department:</strong> <span id="batch-sup-courses">---</span></div>
+                                <div class="detail-item"><strong>Status:</strong> <span class="highlight-yellow">Active Batch</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Classmates Section -->
+                        <div class="members-grid-container" style="margin-top: 2rem;">
+                            <h4 class="sub-section-title">Batch Classmates</h4>
+                            <div id="classmates-grid" class="members-grid">
+                                <!-- JS will inject cards here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+    </div>
+    
+</body>
+
+<script type="module" src="/js/account.js"></script>
+
+</html>

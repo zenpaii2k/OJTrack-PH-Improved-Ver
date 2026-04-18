@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+     <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OJTrack PH - Adviser Feedback</title>
+     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/feedback.css">
+</head>
+
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR NAVIGATION
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Student navigation">
+        <div class="sidebar-logo">
+            <a href="dashboard.html" title="Go to Dashboard">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Student Portal</div>
+
+        <nav class="nav-links">
+            <a href="dashboard.html"      class="nav-item active"   aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="ojtattendance.html"  class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checklist.html"      class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
+            <a href="generatepdf.html"    class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
+            <a href="feedback.html"       class="nav-item">💬 <span class="nav-label">Feedback</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="account.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- TOP HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back!</h3>
+                <p id="greeting-sub">Loading your OJT summary…</p>
+            </div>
+
+            <div class="header-tools">
+                <!-- NOTIFICATION BELL -->
+                <div class="notif-wrapper" role="region" aria-label="Notifications">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
+                        🔔
+                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
+                    </button>
+                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE PILL -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+
+                    <div id="profile-menu" class="profile-pop" role="menu">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Student Name</strong>
+                            <p id="user-full-email">email@example.com</p>
+                        </div>
+                        <hr>
+                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="feedback-layout">
+
+            <section class="feedback-container">
+                <p style="text-align:center; color:gray; padding:20px;">Loading feedback...</p>
+            </section>
+        </main>
+    </div>
+
+</body>
+
+<script type="module" src="/js/feedback.js"></script>
+
+</html>

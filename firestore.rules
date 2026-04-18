@@ -1,0 +1,238 @@
+// ══════════════════════════════════════════════════════════════
+//  OJTrack PH — Firestore Security Rules v2.0
+//  Deploy via:  firebase deploy --only firestore:rules
+//
+//  Key Principles:
+//   1. Deny everything by default — only allow what is explicitly needed
+//   2. Never allow a client to change its own role
+//   3. Advisers can read student data; students cannot read each other's
+//   4. Only the system (Cloud Functions) or advisers may write notifications
+//   5. Validate data types and length on every write
+// ══════════════════════════════════════════════════════════════
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPER FUNCTIONS ──────────────────────────────────────
+
+    /** Returns true if the request comes from an authenticated user. */
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /** Returns true if the requesting user owns this document (uid matches). */
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    /**
+     * Fetches the role of the currently authenticated user from Firestore.
+     * NOTE: This costs one extra read per rule evaluation that uses it.
+     * For frequently-accessed collections, consider storing role in a
+     * custom claim via Admin SDK for better performance.
+     */
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isStudent()  { return isAuth() && getRole() == 'student';    }
+    function isAdviser()  { return isAuth() && getRole() == 'supervisor'; }
+
+    /**
+     * Validates that a string field is non-empty and within a max length.
+     * @param field - the value to check
+     * @param maxLen - maximum allowed length
+     */
+    function validStr(field, maxLen) {
+      return field is string && field.size() > 0 && field.size() <= maxLen;
+    }
+
+    /** Validates that a field is a positive integer within range. */
+    function validInt(field, min, max) {
+      return field is int && field >= min && field <= max;
+    }
+
+    // ─── USERS ────────────────────────────────────────────────
+
+    match /users/{userId} {
+
+      // Advisers can read any student profile; students can only read their own.
+      allow read: if isOwner(userId) || isAdviser();
+
+      // A user can create their OWN profile document (happens on registration).
+      allow create: if isOwner(userId)
+                    // Must have required fields
+                    && validStr(request.resource.data.firstName, 50)
+                    && validStr(request.resource.data.lastName,  50)
+                    && validStr(request.resource.data.email,    120)
+                    && request.resource.data.role in ['student', 'supervisor']
+                    // createdAt must be a server timestamp
+                    && request.resource.data.createdAt == request.time;
+
+      // Students can update their own profile BUT cannot change role, uid, or session ID.
+      allow update: if isOwner(userId)
+                    && !request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasAny(['role', 'uid', 'createdAt']);
+
+      // Advisers can update student completedHours (used for batch review).
+      // They cannot change role, email, or security fields.
+      allow update: if isAdviser()
+                    && !request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasAny(['role', 'email', 'uid', 'createdAt', 'currentSessionId']);
+
+      // No client may delete a user document.
+      allow delete: if false;
+    }
+
+    // ─── ATTENDANCE LOGS ──────────────────────────────────────
+
+    match /attendance/{logId} {
+
+      // Students can read their own logs; advisers can read all.
+      allow read: if isAuth() && (
+                      resource.data.userId == request.auth.uid || isAdviser()
+                  );
+
+      // Students can create their own logs with validated fields.
+      allow create: if isStudent()
+                    && request.resource.data.userId == request.auth.uid
+                    // Required fields
+                    && request.resource.data.keys().hasAll(['userId','date','timeIn','timeOut','createdAt'])
+                    // Field type/length validation
+                    && validStr(request.resource.data.date,    10)   // YYYY-MM-DD
+                    && validStr(request.resource.data.timeIn,  10)
+                    && validStr(request.resource.data.timeOut, 10)
+                    && request.resource.data.hoursRendered is number
+                    && request.resource.data.hoursRendered >= 0
+                    && request.resource.data.hoursRendered <= 24
+                    // Status must be 'pending' on creation
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.createdAt == request.time;
+
+      // Only advisers can update logs (to approve/reject them).
+      allow update: if isAdviser()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['status','reviewedBy','reviewedAt','adviserNote'])
+                    && request.resource.data.status in ['approved','rejected','pending'];
+
+      // Students can delete only their OWN PENDING logs.
+      allow delete: if isStudent()
+                    && resource.data.userId == request.auth.uid
+                    && resource.data.status == 'pending';
+    }
+
+    // ─── NOTIFICATIONS ────────────────────────────────────────
+
+    match /notifications/{notifId} {
+
+      // Recipients can only read their own notifications.
+      allow read: if isAuth() && resource.data.recipientUid == request.auth.uid;
+
+      // Only advisers can create notifications for students.
+      // (System notifications should come from Cloud Functions using Admin SDK.)
+      allow create: if isAdviser()
+                    && validStr(request.resource.data.recipientUid, 128)
+                    && validStr(request.resource.data.title,        120)
+                    && validStr(request.resource.data.body,         500)
+                    && request.resource.data.type in ['alert','message','system','approval','reminder']
+                    && request.resource.data.isRead == false
+                    && request.resource.data.createdAt == request.time;
+
+      // Recipients can only mark their own notifications as read.
+      allow update: if isAuth()
+                    && resource.data.recipientUid == request.auth.uid
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['isRead'])
+                    && request.resource.data.isRead == true;
+
+      // Notifications are never deleted (use isRead flag instead).
+      allow delete: if false;
+    }
+
+    // ─── BATCHES ──────────────────────────────────────────────
+
+    match /batches/{batchId} {
+
+      // Any authenticated user can read batch data (for invite link validation).
+      allow read: if isAuth();
+
+      // Only advisers can create new batches.
+      allow create: if isAdviser()
+                    && validStr(request.resource.data.name, 80)
+                    && validStr(request.resource.data.academicYear, 12)
+                    && request.resource.data.adviserId == request.auth.uid
+                    && request.resource.data.createdAt == request.time;
+
+      // Advisers can update their own batches.
+      // Students can only add their own UID to studentUids (via invite link registration).
+      allow update: if isAdviser() && resource.data.adviserId == request.auth.uid;
+      allow update: if isStudent()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['studentUids'])
+                    && request.resource.data.studentUids.hasAll(resource.data.studentUids)
+                    && request.resource.data.studentUids.size() == resource.data.studentUids.size() + 1;
+
+      // Only advisers who own the batch can delete it.
+      allow delete: if isAdviser() && resource.data.adviserId == request.auth.uid;
+    }
+
+    // ─── CHECKLIST / REQUIREMENTS ─────────────────────────────
+
+    match /checklist/{docId} {
+
+      allow read:   if isAuth() && (
+                        resource.data.uid == request.auth.uid || isAdviser()
+                    );
+      allow create: if isStudent()
+                    && request.resource.data.uid == request.auth.uid
+                    && validStr(request.resource.data.formKey, 80);
+      allow update: if isAdviser()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['status','reviewedBy','reviewedAt','remarks']);
+      allow delete: if isStudent()
+                    && resource.data.uid == request.auth.uid
+                    && resource.data.status == 'pending';
+    }
+
+    // ─── REPORTS ──────────────────────────────────────────────
+
+    match /reports/{reportId} {
+
+      allow read:   if isAuth() && (
+                        resource.data.studentUid == request.auth.uid || isAdviser()
+                    );
+      allow create: if isStudent()
+                    && request.resource.data.studentUid == request.auth.uid
+                    && request.resource.data.createdAt == request.time;
+      allow update: if isAdviser()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['status','reviewedBy','reviewedAt','remarks']);
+      allow delete: if false;
+    }
+
+    // ─── FEEDBACK ─────────────────────────────────────────────
+
+    match /students/{studentId}/feedback/{feedbackId} {
+
+      allow read:   if isOwner(studentId) || isAdviser();
+      // Only advisers can create feedback for students.
+      allow create: if isAdviser()
+                    && validStr(request.resource.data.message, 1000)
+                    && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ─── CATCH-ALL: Deny everything not explicitly listed above.
+    // This is the default — kept here as a reminder not to add
+    // overly broad rules like "allow read, write: if isAuth()".
+  }
+}

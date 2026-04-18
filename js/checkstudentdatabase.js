@@ -1,0 +1,544 @@
+import { protectPage } from "../authguard.js";
+import { db, auth } from "../firebase-config.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    updateDoc, collection, query, where, onSnapshot, doc, getDoc, getDocs, addDoc, serverTimestamp, orderBy, limit 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+    initTheme,
+    setupThemeToggle,
+    setupProfileDropdown,
+    setupNotifDropdown,
+    populateHeaderUser,
+    sanitizeText,
+    formatTimestamp,
+} from '../js/theme.js';
+
+import { setupNotificationSystem } from '../js/notifications.js';
+
+initTheme();
+
+const nameCache = {}; 
+let state = {
+    attendance: [],
+    documents: [],
+    myStudentUids: new Set()
+};
+
+let loggedDates = new Map();
+let currentCalMonth = new Date();
+let activeStudentUid = null;
+
+// 1. Auth Guarding
+protectPage('supervisor').then((user) => {
+});
+
+// 2. Auth State Listener (Main Entry Point)
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        await fetchUserProfile(user);
+        
+        renderCalendar(currentCalMonth);
+        initCombinedRealTimeDashboard(user); 
+        setupInteractions(user);      
+        initDashboard(); 
+        setupNotificationSystem(user.uid);
+    } else {
+        window.location.replace("/index.html");
+    }
+});
+
+function initCombinedRealTimeDashboard(user) {
+
+    updateTotalStats(user).then((uids) => {
+        state.myStudentUids = uids;
+
+        const attendanceQ = query(
+            collection(db, "attendance"),
+            orderBy("timestamp", "asc"),
+            limit(50)
+        );
+
+        onSnapshot(attendanceQ, (snapshot) => {
+            state.attendance = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                type: "attendance"
+            }));
+            renderUI(user);
+        });
+
+        const checklistQ = query(
+            collection(db, "checklist"),
+            orderBy("timestamp", "asc"),
+            limit(50)
+        );
+
+        onSnapshot(checklistQ, (snapshot) => {
+            state.documents = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                type: "document"
+            }));
+            renderUI(user);
+        });
+    });
+}
+
+// Helper to keep the safeguard active
+async function updateTotalStats(user) {
+    try {
+        const batchQuery = query(collection(db, "batches"), where("supervisorId", "==", user.uid));
+        const batchSnap = await getDocs(batchQuery);
+        const uniqueStudents = new Set();
+        batchSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.studentUids) data.studentUids.forEach(uid => uniqueStudents.add(uid));
+        });
+        return uniqueStudents;
+    } catch (e) { return new Set(); }
+}
+
+async function getStudentName(uid) {
+    if (nameCache[uid]) return nameCache[uid];
+    const userDoc = await getDoc(doc(db, "users", uid));
+    let name = "Unknown Student";
+    if (userDoc.exists()) {
+        const d = userDoc.data();
+        name = d.name || `${d.firstName || ''} ${d.surname || ''}`.trim() || "Anonymous";
+    }
+    nameCache[uid] = name;
+    return name;
+}
+
+window.dismissSingleNotif = async (id, userId, type) => {
+    try {
+        const collectionName = type === "attendance" ? "attendance" : "checklist";
+        const ref = doc(db, collectionName, id);
+
+        await updateDoc(ref, {
+            dismissedBy: arrayUnion(userId)
+        });
+
+    } catch (err) {
+        console.error("Dismiss error:", err);
+    }
+};
+
+// 3. Initialize Dashboard Logic
+function initDashboard() {
+    const select = document.getElementById('section-select');
+    const backBtn = document.getElementById('back-to-list');
+
+    if (select) {
+        // Load the batches
+        loadBatchDropdown();
+        
+        // FIX: Remove existing listeners without cloning the node, 
+        // or just add the listener directly if this only runs once.
+        // If you must prevent multiple listeners:
+        select.onchange = (e) => {
+            if (e.target.value) {
+                loadStudentList(e.target.value);
+            }
+        };
+    }
+
+    if (backBtn) {
+        backBtn.onclick = () => {
+            document.getElementById('student-list-view').style.display = 'block';
+            document.getElementById('student-detail-view').style.display = 'none';
+        };
+    }
+}
+
+// 4. Load Specific Batches
+async function loadBatchDropdown() {
+    const select = document.getElementById('section-select');
+    if (!select) return;
+
+    select.innerHTML = '<option value="" disabled selected>Loading your batches...</option>';
+
+    try {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        const q = query(
+            collection(db, "batches"), 
+            where("supervisorId", "==", user.uid)
+        );
+
+        const querySnapshot = await getDocs(q);
+        
+        // Reset the dropdown
+        select.innerHTML = '<option value="" selected>-- Select a Batch --</option>';
+
+        if (querySnapshot.empty) {
+            select.innerHTML = '<option value="">No batches created yet</option>';
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const batch = docSnap.data();
+            const option = document.createElement('option');
+            option.value = docSnap.id;
+            
+            // Matches "BSIT 311" as seen in your logs
+            option.innerHTML = batch.name || `Batch ${docSnap.id.substring(0,5)}`;
+            select.appendChild(option);
+        });
+
+        console.log(`Successfully loaded ${querySnapshot.size} batches.`);
+        
+    } catch (error) {
+        console.error("Batch Dropdown Error:", error);
+        select.innerHTML = '<option value="">Error loading batches</option>';
+    }
+}
+
+function setupInteractions(user) {
+    const profileMenu = document.getElementById('profile-menu');
+    const notifModal = document.getElementById('notif-modal');
+    const notifBtn = document.getElementById('notif-btn');
+    const clearAllBtn = document.getElementById('clear-all-notifs');
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    const logoutBtn = document.getElementById('logout-link');
+
+    if (document.getElementById('profile-trigger')) {
+        document.getElementById('profile-trigger').onclick = (e) => {
+            e.stopPropagation();
+            profileMenu?.classList.toggle('show');
+            notifModal?.classList.remove('show');
+        };
+    }
+    
+      if (notifBtn) {
+        notifBtn.onclick = (e) => {
+            e.stopPropagation();
+            notifModal.classList.toggle('show');
+        };
+    }
+
+    if (clearAllBtn) {
+        clearAllBtn.onclick = (e) => {
+            e.stopPropagation();
+            // This grabs IDs from our global state and adds them to localStorage
+            const currentIds = [...state.attendance, ...state.documents].map(item => item.id);
+            const dismissed = JSON.parse(localStorage.getItem(`sup_dismissed_${user.uid}`) || "[]");
+            localStorage.setItem(`sup_dismissed_${user.uid}`, JSON.stringify([...new Set([...dismissed, ...currentIds])]));
+        };
+    }
+
+    const prevBtn = document.getElementById('prevMonth');
+    const nextBtn = document.getElementById('nextMonth');
+
+    if (prevBtn) {
+        prevBtn.onclick = () => {
+            currentCalMonth = new Date(currentCalMonth.getFullYear(), currentCalMonth.getMonth() - 1, 1);
+            renderCalendar(currentCalMonth);
+        };
+    }
+
+    if (nextBtn) {
+        nextBtn.onclick = () => {
+            currentCalMonth = new Date(currentCalMonth.getFullYear(), currentCalMonth.getMonth() + 1, 1);
+            renderCalendar(currentCalMonth);
+        };
+    }
+
+    if (logoutBtn) {
+        logoutBtn.onclick = () => signOut(auth).then(() => location.replace("/index.html"));
+    }
+
+    window.onclick = () => {
+        profileMenu?.classList.remove('show');
+        notifModal?.classList.remove('show');
+    };
+}
+
+async function fetchUserProfile(user) {
+    try {
+        const userSnap = await getDoc(doc(db, "users", user.uid)); 
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            const name = userData.name || "User";
+            if (document.getElementById('user-display-name')) document.getElementById('user-display-name').innerText = name;
+            if (document.getElementById('user-display-name-pop')) document.getElementById('user-display-name-pop').innerText = name;
+            if (document.getElementById('user-full-email')) document.getElementById('user-full-email').innerText = user.email;
+        } 
+    } catch (e) { console.error("Profile Error:", e); }
+}
+
+function loadStudentList(batchId) {
+    if (!batchId) return;
+    const container = document.getElementById('student-rows-container');
+    
+    // Show loading state in the table
+    container.innerHTML = '<div class="loading-text">Loading students...</div>';
+
+    const q = query(collection(db, "students"), where("batch", "==", batchId));
+
+    onSnapshot(q, (snapshot) => {
+        container.innerHTML = "";
+        
+        if (snapshot.empty) {
+            container.innerHTML = '<div class="empty-text" style="padding: 20px; color: #888;">No students enrolled in this batch yet.</div>';
+            return;
+        }
+
+        snapshot.forEach((doc) => {
+            const student = doc.data();
+            const row = document.createElement('div');
+            row.className = 'student-row';
+            
+            // Format the row content
+            row.innerHTML = `
+                <div class="student-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span class="name" style="text-align: left;">${student.name || "Unknown Student"}</span>
+                    <span class="section-tag" style="text-align: right;">${student.course}-${student.section}</span>
+                </div>
+            `;
+            
+            row.onclick = () => viewStudentDetails(doc.id, student); 
+            container.appendChild(row);
+        });
+    }, (error) => {
+        console.error("Student Snapshot Error:", error);
+        container.innerHTML= '<div class="error-text">Failed to load students.</div>';
+    });
+}
+
+// 1. Updated viewStudentDetails to handle "Approved" hours calculation
+async function viewStudentDetails(docId, studentData) {
+    document.getElementById('student-list-view').style.display = 'none';
+    document.getElementById('student-detail-view').style.display = 'block';
+    
+    activeStudentUid = studentData.uid || docId;
+    document.getElementById('selected-student-display').innerText = `${studentData.name} - OJT Progress`;
+
+    const logContainer = document.getElementById('log-cards-container');
+    const logQuery = query(collection(db, "attendance"), where("uid", "==", activeStudentUid), orderBy("timestamp", "desc")); 
+    
+    const requiredHours = studentData.requiredHours || 600;
+
+    onSnapshot(logQuery, (snapshot) => {
+        logContainer.innerHTML = "";
+        loggedDates.clear(); 
+        
+        let totalApprovedMinutes = 0;
+
+        if (snapshot.empty) {
+            logContainer.innerHTML= "<p style='color:#888; padding:20px;'>No logs found for this student.</p>";
+            updateProgressBar(0, requiredHours);
+            renderCalendar(currentCalMonth);
+            return;
+        }
+
+        snapshot.forEach((logDoc) => {
+            const log = logDoc.data();
+            const logId = logDoc.id;
+            const status = log.status || "Pending";
+            
+            // Map status to calendar
+            loggedDates.set(log.displayDate, status);
+
+            if (status === "Approved" && log.timeIn && log.timeOut) {
+                totalApprovedMinutes += calculateMinutes(log.timeIn, log.timeOut);
+            }
+
+            const isLocked = status !== "Pending";
+            const card = document.createElement('div');
+            card.className = "log-review-card";
+            
+            // Re-introducing the Accomplishment Note section
+            card.innerHTML = `
+                <div class="log-card-inner" style="background:#1e1e1e; padding:15px; border-radius:8px; margin-bottom:12px; border-left: 5px solid ${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#f1c40f'};">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div style="flex: 1; padding-right: 15px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <strong style="color:#ffd400; font-size: 1.1rem;">${log.displayDate}</strong>
+                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#f1c40f'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
+                                    ${status.toUpperCase()}
+                                </span>
+                            </div>
+                            
+                            <div style="color:#aaa; font-size:0.85rem; margin-top:8px;">
+                                <span style="background: rgba(255,212,0,0.1); color: #ffd400; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                                    🕒 ${log.timeIn} — ${log.timeOut}
+                                </span>
+                                ${status === "Approved" ? `<span style="color:#2ecc71; margin-left:10px; font-weight: bold;">(+${(calculateMinutes(log.timeIn, log.timeOut)/60).toFixed(1)} hrs)</span>` : ''}
+                            </div>
+
+                            <div class="log-note-box" style="margin-top:12px; padding:10px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid #444;">
+                                <small style="display:block; color:#888; margin-bottom:4px; font-size:0.7rem; text-transform:uppercase;">Daily Accomplishment Note:</small>
+                                <p style="margin:0; font-size:0.9rem; color:#eee; line-height:1.4;">
+                                    ${log.note || "<em>No accomplishment notes provided for this log.</em>"}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="log-actions" style="display:flex; flex-direction:column; gap:8px;">
+                            ${!isLocked ? `
+                                <button onclick="confirmLogAction('${logId}', 'Approved')" 
+                                    style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
+                                    Approve
+                                </button>
+                                <button onclick="confirmLogAction('${logId}', 'Rejected')" 
+                                    style="background:#e74c3c; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
+                                    Reject
+                                </button>
+                            ` : `
+                                <button onclick="revertToPending('${logId}')" 
+                                    style="background:transparent; border:1px solid #444; color:#888; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:0.7rem;">
+                                    Revert to Pending
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+            logContainer.appendChild(card);
+        });
+
+        const approvedHours = (totalApprovedMinutes / 60).toFixed(1);
+        updateProgressBar(approvedHours, requiredHours);
+        renderCalendar(currentCalMonth);
+    });
+}
+
+// Helper to update the Progress UI
+function updateProgressBar(approved, required) {
+    const totalHoursDisp = document.getElementById('total-hours');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+
+    if (totalHoursDisp) totalHoursDisp.innerText = `${approved} HRS`;
+    
+    const percentage = Math.min((approved / required) * 100, 100);
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressText) progressText.innerText = `Verified: ${approved} / ${required} target hours`;
+}
+
+// Helper for time calculation
+function calculateMinutes(t1, t2) {
+    const parse = (s) => {
+        try {
+            let [time, mod] = s.split(' ');
+            let [h, m] = time.split(':').map(Number);
+            if (h === 12) h = 0;
+            if (mod === 'PM') h += 12;
+            return h * 60 + m;
+        } catch (e) { return 0; }
+    };
+    return parse(t2) - parse(t1);
+}
+
+// Optional: Allow the adviser to fix a mistake
+window.revertToPending = async (logId) => {
+    if(confirm("Revert this log to pending? This will remove the hours from the approved total.")) {
+        await updateDoc(doc(db, "attendance", logId), { status: "Pending" });
+    }
+};
+
+function renderCalendar(date) {
+    const calGrid = document.getElementById('mini-calendar');
+    const monthDisplay = document.getElementById('monthDisplay');
+    if (!calGrid || !monthDisplay) return;
+
+    calGrid.innerHTML = '';
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const today = new Date();
+
+    monthDisplay.innerText = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    ['S','M','T','W','T','F','S'].forEach(d => {
+        const el = document.createElement('b');
+        el.innerText = d;
+        calGrid.appendChild(el);
+    });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) calGrid.appendChild(document.createElement('div'));
+
+    for (let i = 1; i <= daysInMonth; i++) {
+        const dayEl = document.createElement('div');
+        dayEl.innerText = i;
+        dayEl.className = "calendar-day"; // Ensure CSS handles padding/cursor
+
+        const currentIterDate = new Date(year, month, i);
+        const fullDateStr = currentIterDate.toDateString(); 
+        
+        const status = loggedDates.get(fullDateStr);
+        const isToday = i === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+
+        if (isToday) dayEl.style.border = "2px solid #ffd400";
+
+        if (status === "Approved") {
+            dayEl.style.background = "#2ecc71";
+            dayEl.style.color = "#fff";
+        } else if (status === "Rejected") {
+            dayEl.style.background = "#e74c3c";
+            dayEl.style.color = "#fff";
+        } else if (status === "Pending") {
+            dayEl.style.background = "#f1c40f";
+            dayEl.style.color = "#000";
+        }
+        calGrid.appendChild(dayEl);
+    }
+}
+
+window.confirmLogAction = async (logId, status) => {
+    if(confirm(`Are you sure you want to mark this log as ${status}? This action cannot be undone.`)) {
+        await updateLogStatus(logId, status);
+    }
+};
+
+window.updateLogStatus = async (logId, newStatus) => {
+    try {
+        const logRef = doc(db, "attendance", logId);
+        // Only allow update if current state in DB is pending (extra security)
+        const docSnap = await getDoc(logRef);
+        if (docSnap.exists() && docSnap.data().status && docSnap.data().status !== "Pending") {
+            alert("This log has already been processed and cannot be changed.");
+            return;
+        }
+
+        await updateDoc(logRef, { 
+            status: newStatus,
+            reviewedAt: serverTimestamp() 
+        });
+    } catch (e) {
+        alert("Error updating status: " + e.message);
+    }
+};
+
+const saveRemarksBtn = document.getElementById('save-remarks-btn');
+if (saveRemarksBtn) {
+    saveRemarksBtn.onclick = async () => {
+        const text = document.getElementById('student-remarks').value;
+        if (!activeStudentUid) return alert("No student selected.");
+        if (!text.trim()) return alert("Please enter remarks first.");
+
+        try {
+            const userRef = doc(db, "users", auth.currentUser.uid);
+            const userSnap = await getDoc(userRef);
+            const sData = userSnap.data() || {};
+
+            await addDoc(collection(db, "students", activeStudentUid, "feedback"), {
+                senderName: sData.name || "Adviser",
+                senderRole: sData.position || "OJT Adviser",
+                message: text,
+                subject: "Adviser Evaluation",
+                timestamp: serverTimestamp()
+            });
+            
+            alert("Feedback sent successfully!");
+            document.getElementById('student-remarks').value = "";
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+}

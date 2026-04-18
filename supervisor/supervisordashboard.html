@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OJTrack PH Adviser Dashboard">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — Adviser Dashboard</title>
+
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/supervisordashboard.css">
+</head>
+
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Adviser navigation">
+        <div class="sidebar-logo">
+            <a href="supervisordashboard.html">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Adviser Portal</div>
+
+        <nav class="nav-links">
+            <a href="supervisordashboard.html"  class="nav-item active" aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checkstudentreq.html"      class="nav-item">✔️ <span class="nav-label">Requirements</span></a>
+            <a href="batchmanagement.html"      class="nav-item">📁 <span class="nav-label">Manage Batch</span></a>
+            <a href="checkstudentreports.html"  class="nav-item">📄 <span class="nav-label">Reports</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="supervisoraccount.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back, Adviser!</h3>
+                <p id="greeting-sub">Here's your students' overview.</p>
+            </div>
+
+            <div class="header-tools">
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                    🔔
+                    <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                    </button>
+                        <div id="notif-modal" class="notif-dropdown">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+                    <div id="profile-menu" class="profile-pop">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Adviser Name</strong>
+                            <p id="user-full-email"></p>
+                        </div>
+                        <hr>
+                        <a href="supervisoraccount.html" class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- PAGE BODY -->
+        <main class="main-layout">
+
+            <!-- LEFT / MAIN COLUMN -->
+            <div class="content-area">
+
+                <!-- STAT CARDS: 4 columns for adviser -->
+                <section class="stats-overview stats-4col" aria-label="Overview statistics">
+
+                    <div class="stat-card gold">
+                        <span class="stat-icon">🎓</span>
+                        <div class="stat-label">Total Students</div>
+                        <div class="stat-value" id="stat-total-students">—</div>
+                        <div class="stat-sub">under your supervision</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <span class="stat-icon">📁</span>
+                        <div class="stat-label">Active Batches</div>
+                        <div class="stat-value" id="stat-total-batches">—</div>
+                        <div class="stat-sub">current semester</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <span class="stat-icon">📋</span>
+                        <div class="stat-label">Pending Reports</div>
+                        <div class="stat-value" id="stat-pending-reports">—</div>
+                        <div class="stat-sub">awaiting review</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <span class="stat-icon">🕒</span>
+                        <div class="stat-label">Pending Logs</div>
+                        <div class="stat-value" id="stat-pending-logs">—</div>
+                        <div class="stat-sub">unreviewed entries</div>
+                    </div>
+
+                </section>
+
+                <!-- BATCH PROGRESS OVERVIEW -->
+                <div class="table-card" style="margin-bottom:16px;">
+                    <div class="table-card-header">
+                        <h3>📊 Batch Progress</h3>
+                        <a href="batchmanagement.html" class="btn btn-outline btn-sm">Manage</a>
+                    </div>
+                    <div id="batch-progress-list" style="padding:12px 16px;">
+                        <p class="empty-text">Loading batch data…</p>
+                    </div>
+                </div>
+
+                <!-- RECENT SUBMISSIONS TABLE -->
+                <div class="table-card">
+                    <div class="table-card-header">
+                        <h3>📥 Recent Student Submissions</h3>
+                        <a href="checkstudentdatabase.html" class="btn btn-outline btn-sm">View All</a>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="dashboard-table" aria-label="Recent submissions">
+                            <thead>
+                                <tr>
+                                    <th>STUDENT</th>
+                                    <th>BATCH</th>
+                                    <th>HOURS</th>
+                                    <th>PROGRESS</th>
+                                    <th>STATUS</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-submissions-body">
+                                <tr>
+                                    <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">
+                                        Loading submissions…
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div><!-- /content-area -->
+
+            <!-- RIGHT SIDEBAR -->
+            <aside class="sidebar-widgets">
+
+                <div class="widget cal-widget">
+                    <div class="cal-header">
+                        <button id="prevMonth" class="cal-nav" aria-label="Previous month">‹</button>
+                        <h4 id="monthDisplay">—</h4>
+                        <button id="nextMonth" class="cal-nav" aria-label="Next month">›</button>
+                    </div>
+                    <div id="mini-calendar" class="cal-grid"></div>
+                </div>
+
+                <div class="quick-actions">
+                    <h3>⚡ Management Tools</h3>
+                    <div class="action-stack">
+                        <a href="checkstudentdatabase.html"  class="action-link">🕒 Attendance Logs</a>
+                        <a href="checkstudentreq.html"       class="action-link">✅ OJT Requirements</a>
+                        <a href="batchmanagement.html"       class="action-link">📁 Batch Settings</a>
+                        <a href="checkstudentreports.html"   class="action-link">📄 Check Reports</a>
+                    </div>
+                </div>
+
+            </aside>
+
+        </main>
+    </div>
+
+    <script type="module" src="/js/supervisordashboard.js"></script>
+</body>
+</html>

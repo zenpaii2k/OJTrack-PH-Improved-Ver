@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+      Anti-flash theme script — must be first.
+      Registration page uses the same theme system as the rest of the app.
+    -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Create your OJTrack PH account">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — Create Account</title>
+
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/register.css">
+</head>
+
+<body>
+
+    <!-- ════════════════════════════════════════
+         PAGE WRAPPER
+    ════════════════════════════════════════ -->
+    <div class="reg-page">
+
+        <!-- LEFT PANEL — Branding -->
+        <aside class="reg-panel-left" aria-hidden="true">
+            <div class="panel-brand">
+                <img src="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png" alt="OJTrack PH Logo" class="panel-logo">
+                <h1 class="panel-title">OJTrack PH</h1>
+                <p class="panel-tagline">Effective Training.<br>Easy Tracking.</p>
+            </div>
+            <ul class="panel-features">
+                <li>🕒 Real-time hour logging</li>
+                <li>📄 One-click PDF reports</li>
+                <li>📁 Batch &amp; cohort management</li>
+                <li>🔔 Instant adviser notifications</li>
+                <li>📱 Mobile-optimized interface</li>
+            </ul>
+            <p class="panel-footer">By Nous R&amp;D Team &bull; Las Piñas City, PH</p>
+        </aside>
+
+        <!-- RIGHT PANEL — Registration Form -->
+        <main class="reg-panel-right">
+            <div class="reg-card" role="main">
+
+                <div class="reg-header">
+                    <h2>Create Your Account</h2>
+                    <p>Select your role to begin your OJT journey</p>
+                </div>
+
+                <!-- ROLE SELECTOR -->
+                <div class="role-selector-main" role="group" aria-label="Account role">
+                    <button type="button" id="btn-student"    class="role-opt active"   onclick="toggleRegRole('student')">
+                        🎓 I am a Student
+                    </button>
+                    <button type="button" id="btn-supervisor" class="role-opt"           onclick="toggleRegRole('supervisor')">
+                        👨‍🏫 I am an Adviser
+                    </button>
+                </div>
+
+                <!-- ─── REGISTRATION FORM ─────────────────── -->
+                <form id="registration-form" novalidate>
+
+                    <!-- STEP 1: ACCOUNT SECURITY -->
+                    <fieldset class="form-section">
+                        <legend>
+                            <span class="step-num" aria-label="Step 1">1</span>
+                            Account Security
+                        </legend>
+
+                        <div class="input-grid">
+                            <div class="input-group">
+                                <label for="reg-email">
+                                    School / Work Email <span class="required-mark">*</span>
+                                </label>
+                                <input
+                                    type="email"
+                                    id="reg-email"
+                                    autocomplete="email"
+                                    placeholder="name@university.edu.ph"
+                                    required
+                                    aria-describedby="email-hint">
+                                <span class="field-hint" id="email-hint">Use your institutional email address.</span>
+                                <span class="field-error" id="email-error" role="alert"></span>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="reg-password">
+                                    Password <span class="required-mark">*</span>
+                                </label>
+                                <div class="password-field-wrap">
+                                    <input
+                                        type="password"
+                                        id="reg-password"
+                                        autocomplete="new-password"
+                                        placeholder="Minimum 8 characters"
+                                        required
+                                        minlength="8"
+                                        aria-describedby="pw-hint">
+                                    <button type="button" class="pw-toggle" id="toggle-pw" aria-label="Toggle password visibility">👁️</button>
+                                </div>
+                                <span class="field-hint" id="pw-hint">At least 8 characters.</span>
+                                <!-- Password strength indicator -->
+                                <div class="pw-strength-bar" aria-label="Password strength">
+                                    <div class="pw-strength-fill" id="pw-strength-fill"></div>
+                                </div>
+                                <span class="field-error" id="pw-error" role="alert"></span>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- STEP 2: PERSONAL PROFILE -->
+                    <fieldset class="form-section">
+                        <legend>
+                            <span class="step-num" aria-label="Step 2">2</span>
+                            Personal Profile
+                        </legend>
+
+                        <div class="input-grid">
+                            <div class="input-group">
+                                <label for="reg-firstname">First Name <span class="required-mark">*</span></label>
+                                <input
+                                    type="text"
+                                    id="reg-firstname"
+                                    autocomplete="given-name"
+                                    placeholder="Juan"
+                                    required
+                                    maxlength="50"
+                                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.']+"
+                                    aria-describedby="fn-hint">
+                                <span class="field-hint" id="fn-hint">Letters and hyphens only.</span>
+                                <span class="field-error" id="fn-error" role="alert"></span>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="reg-surname">Last Name <span class="required-mark">*</span></label>
+                                <input
+                                    type="text"
+                                    id="reg-surname"
+                                    autocomplete="family-name"
+                                    placeholder="Dela Cruz"
+                                    required
+                                    maxlength="50"
+                                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.']+"
+                                    aria-describedby="ln-hint">
+                                <span class="field-hint" id="ln-hint">Letters and hyphens only.</span>
+                                <span class="field-error" id="ln-error" role="alert"></span>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- STEP 3: ROLE-SPECIFIC DETAILS -->
+                    <fieldset class="form-section" id="dynamic-fields">
+                        <legend>
+                            <span class="step-num" aria-label="Step 3">3</span>
+                            OJT Deployment Details
+                        </legend>
+
+                        <!-- ── STUDENT FIELDS ── -->
+                        <div id="student-only-fields">
+                            <div class="input-grid">
+
+                                <div class="input-group">
+                                    <label for="std-school">School / University <span class="required-mark">*</span></label>
+                                    <input
+                                        type="text"
+                                        id="std-school"
+                                        placeholder="e.g., STI College Las Piñas"
+                                        required
+                                        maxlength="120">
+                                    <span class="field-error" id="school-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-course">Course / Program <span class="required-mark">*</span></label>
+                                    <select id="std-course" required>
+                                        <option value="" disabled selected>Select course…</option>
+                                        <option value="BACOMM">BACOMM</option>
+                                        <option value="BMMA">BMMA</option>
+                                        <option value="BSAIS">BSAIS</option>
+                                        <option value="BSBA">BSBA</option>
+                                        <option value="BSCpE">BSCpE</option>
+                                        <option value="BSCS">BSCS</option>
+                                        <option value="BSHM">BSHM</option>
+                                        <option value="BSIT">BSIT</option>
+                                        <option value="BSTM">BSTM</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                    <span class="field-error" id="course-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-year">Year Level <span class="required-mark">*</span></label>
+                                    <select id="std-year" required>
+                                        <option value="" disabled selected>Select year…</option>
+                                        <option value="1st">1st Year</option>
+                                        <option value="2nd">2nd Year</option>
+                                        <option value="3rd">3rd Year</option>
+                                        <option value="4th">4th Year</option>
+                                    </select>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-section">Section <span class="required-mark">*</span></label>
+                                    <input
+                                        type="text"
+                                        id="std-section"
+                                        placeholder="e.g., BSIT-401"
+                                        required
+                                        maxlength="20">
+                                    <span class="field-error" id="section-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-company">Host Training Establishment (Company) <span class="required-mark">*</span></label>
+                                    <input
+                                        type="text"
+                                        id="std-company"
+                                        placeholder="e.g., Tech Solutions Inc."
+                                        required
+                                        maxlength="120">
+                                    <span class="field-error" id="company-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-total-hours">Required Completion Hours <span class="required-mark">*</span></label>
+                                    <input
+                                        type="number"
+                                        id="std-total-hours"
+                                        placeholder="e.g., 600"
+                                        required
+                                        min="100"
+                                        max="2000">
+                                    <span class="field-hint">Typically 300–720 hours depending on your program.</span>
+                                    <span class="field-error" id="hours-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-start">Duty Shift Start</label>
+                                    <input type="time" id="std-start">
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="std-end">Duty Shift End</label>
+                                    <input type="time" id="std-end">
+                                </div>
+
+                                <div class="input-group" style="grid-column: 1 / -1;">
+                                    <label for="std-supervisor-name">Adviser / OJT Coordinator Full Name</label>
+                                    <input
+                                        type="text"
+                                        id="std-supervisor-name"
+                                        placeholder="Name of your OJT coordinator"
+                                        maxlength="100">
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- ── ADVISER FIELDS ── -->
+                        <div id="supervisor-only-fields" style="display:none;">
+                            <div class="input-grid">
+
+                                <div class="input-group">
+                                    <label for="sup-org">School / Institution <span class="required-mark">*</span></label>
+                                    <input
+                                        type="text"
+                                        id="sup-org"
+                                        placeholder="e.g., STI College Las Piñas"
+                                        maxlength="120">
+                                    <span class="field-error" id="org-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="sup-contact">Direct Contact Number <span class="required-mark">*</span></label>
+                                    <input
+                                        type="tel"
+                                        id="sup-contact"
+                                        placeholder="+63 9XX XXX XXXX"
+                                        pattern="[\+]?[0-9\s\-]{10,15}"
+                                        maxlength="16">
+                                    <span class="field-error" id="contact-error" role="alert"></span>
+                                </div>
+
+                                <div class="input-group" style="grid-column: 1 / -1;">
+                                    <label>Assigned Courses <span class="required-mark">*</span></label>
+                                    <div id="sup-course-checkboxes" class="checkbox-grid">
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BACOMM"> BACOMM</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BMMA">   BMMA</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSAIS">  BSAIS</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSBA">   BSBA</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSCpE">  BSCpE</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSCS">   BSCS</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSHM">   BSHM</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSIT">   BSIT</label>
+                                        <label class="check-label"><input type="checkbox" name="sup-course" value="BSTM">   BSTM</label>
+                                    </div>
+                                    <span class="field-error" id="courses-error" role="alert"></span>
+                                </div>
+
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- LEGAL CONSENT -->
+                    <div class="legal-consent-section">
+                        <label class="check-label consent-label" for="reg-agree-terms">
+                            <input type="checkbox" id="reg-agree-terms" required>
+                            <span>
+                                I have read and agree to the
+                                <button type="button" id="privacy-link" class="legal-link-btn">Privacy Policy</button>
+                                and
+                                <button type="button" id="terms-link" class="legal-link-btn">Terms &amp; Conditions</button>
+                                of OJTrack PH.
+                            </span>
+                        </label>
+                    </div>
+
+                    <!-- GLOBAL ERROR BANNER -->
+                    <div id="form-error-banner" class="error-banner" style="display:none;" role="alert"></div>
+
+                    <!-- SUBMIT -->
+                    <button
+                        type="submit"
+                        class="btn-submit-reg"
+                        id="main-submit-btn"
+                        disabled>
+                        <span id="submit-label">Create Account</span>
+                        <span id="submit-spinner" class="spinner" style="display:none;"></span>
+                    </button>
+
+                </form>
+
+                <p class="footer-link">Already have an account? <a href="../index.html">Sign in here</a></p>
+
+            </div><!-- /reg-card -->
+        </main>
+
+    </div><!-- /reg-page -->
+
+    <!-- ════════════════════════════════════════
+         LEGAL MODAL
+    ════════════════════════════════════════ -->
+    <div id="legal-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="legal-title">
+        <div class="modal-card" style="max-width:560px; max-height:85vh; display:flex; flex-direction:column;">
+            <button type="button" class="close-modal-btn" id="close-legal-btn" aria-label="Close">&times;</button>
+            <h2 class="modal-title" id="legal-title">Legal Document</h2>
+            <div id="legal-content" class="legal-scroll-view" tabindex="0"></div>
+            <div style="padding-top:16px; border-top:1px solid var(--border); margin-top:auto;">
+                <button type="button" class="btn btn-gold" id="legal-understand-btn" style="width:100%;">
+                    I Understand
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/register.js"></script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+     <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+    
+     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OJTrack PH - OJT Requirement Checklist</title>
+     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/checklist.css">
+</head>
+
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR NAVIGATION
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Student navigation">
+        <div class="sidebar-logo">
+            <a href="dashboard.html" title="Go to Dashboard">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Student Portal</div>
+
+        <nav class="nav-links">
+            <a href="dashboard.html"      class="nav-item active"   aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="ojtattendance.html"  class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checklist.html"      class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
+            <a href="generatepdf.html"    class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
+            <a href="feedback.html"       class="nav-item">💬 <span class="nav-label">Feedback</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="account.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- TOP HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back!</h3>
+                <p id="greeting-sub">Loading your OJT summary…</p>
+            </div>
+
+            <div class="header-tools">
+                <!-- NOTIFICATION BELL -->
+                <div class="notif-wrapper" role="region" aria-label="Notifications">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
+                        🔔
+                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
+                    </button>
+                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE PILL -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+
+                    <div id="profile-menu" class="profile-pop" role="menu">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Student Name</strong>
+                            <p id="user-full-email">email@example.com</p>
+                        </div>
+                        <hr>
+                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+    <main class="checklist-layout">
+        <div class="content-container"> 
+            <div class="checklist-stats-card">
+                <div class="stats-info">
+                    <h2>OJT Requirements Progress</h2>
+                    <p id="completion-text">Loading progress...</p>
+                </div>
+                <div class="progress-container">
+                    <div id="overall-progress-bar" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <div class="checklist-card">
+                <div class="card-header-flex">
+                    <h3 class="checklist-main-title">Document Checklist</h3>
+                    <div class="action-buttons">
+                        <button class="btn-action primary" onclick="openUploadModal('Forms')">+ Add Forms</button>
+                        <button class="btn-action secondary" onclick="openUploadModal('Requirements')">+ Add Requirements</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="checklist-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">OJT Document</th>
+                                <th style="width: 25%;">Submission Date</th>
+                                <th style="width: 25%;">Current Status</th>
+                                <th style="width: 20%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="checklist-tbody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="uploadModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3 id="modalTitle">Upload</h3>
+            <select id="formSelector" class="modal-select"></select>
+            <div class="upload-zone">
+                <input type="file" id="fileInput" accept="application/pdf, image/*">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="btn-cancel-upload">Cancel</button>
+                <button class="btn-primary" onclick="processUpload()">Submit File</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="previewModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content preview-content">
+            <h3>Document Preview</h3>
+            <div id="previewContainer" style="width:100%; height:400px; border:1px solid #444;"></div>
+            <button class="btn-secondary" style="margin-top:10px;" id="btn-close-preview">Close Preview</button>
+        </div>
+    </div>
+    </div>
+
+</body>
+
+<script type="module" src="/js/checklist.js"></script>
+
+</html>

@@ -1,0 +1,93 @@
+/* ─── dashboard.css ─────────────────────────────────────────
+   Page-specific styles for student/dashboard.html.
+   Shared design tokens and component styles live in shared.css.
+   ─────────────────────────────────────────────────────────── */
+
+/* 3-column stat grid on this page */
+.stats-3col {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* OJT info strip below stats */
+.info-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.info-chip {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* Main dashboard grid layout */
+.main-layout {
+    display: grid;
+    grid-template-columns: 1fr 290px;
+    gap: 20px;
+    padding: 22px 24px;
+    align-items: start;
+}
+
+/* Feedback cards */
+.feedback-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 10px;
+}
+
+.feedback-card .fb-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.feedback-card .fb-author {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--brand-gold);
+}
+
+.feedback-card .fb-time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.feedback-card .fb-body {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* Responsive: collapse sidebar on smaller screens */
+@media (max-width: 1024px) {
+    .main-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-3col {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .sidebar-widgets {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .main-layout { padding: 14px; }
+    .stats-3col  { grid-template-columns: 1fr; }
+    .info-strip  { display: none; }
+    .sidebar-widgets { grid-template-columns: 1fr; }
+}

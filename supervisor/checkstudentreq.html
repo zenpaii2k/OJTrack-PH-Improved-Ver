@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+     <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OJTrack PH - Check OJT Requirements</title>
+     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/checkstudentreq.css">
+</head>
+
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Adviser navigation">
+        <div class="sidebar-logo">
+            <a href="supervisordashboard.html">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Adviser Portal</div>
+
+        <nav class="nav-links">
+            <a href="supervisordashboard.html"  class="nav-item active" aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checkstudentreq.html"      class="nav-item">✔️ <span class="nav-label">Requirements</span></a>
+            <a href="batchmanagement.html"      class="nav-item">📁 <span class="nav-label">Manage Batch</span></a>
+            <a href="checkstudentreports.html"  class="nav-item">📄 <span class="nav-label">Reports</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="supervisoraccount.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back, Adviser!</h3>
+                <p id="greeting-sub">Here's your students' overview.</p>
+            </div>
+
+            <div class="header-tools">
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                    🔔
+                    <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                    </button>
+                        <div id="notif-modal" class="notif-dropdown">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+                    <div id="profile-menu" class="profile-pop">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Adviser Name</strong>
+                            <p id="user-full-email"></p>
+                        </div>
+                        <hr>
+                        <a href="supervisoraccount.html" class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content-wrapper">
+            <aside class="student-sidebar">
+                <div class="sidebar-header">
+                    <h3>Interns List</h3>
+                    <select id="batch-filter">
+                        <option value="all">All Students</option>
+                        </select>
+                </div>
+                <div class="sidebar-search" style="padding: 10px;">
+                    <input type="text" id="student-search" placeholder="Search intern name..." style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: white;">
+                </div>
+                <div id="student-list" class="student-nav-list">
+                    <div class="loading-text">Loading interns...</div>
+                </div>
+            </aside>
+
+            <main class="checklist-verification">
+                <div class="intern-profile-card">
+                    <div class="profile-main-info">
+                        <h2 id="display-name">Select a Student</h2>
+                        <p id="display-section">Batch & Section Information</p>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Requirements</span>
+                            <span id="completion-count" class="stat-value">0/13</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <table class="verification-table">
+                        <thead>
+                            <tr>
+                                <th>Requirement</th>
+                                <th>Submission Date</th>
+                                <th>Document</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="verification-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align:center; padding: 40px;">Select a student to view their OJT checklist.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="feedbackModal" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <h3>Review Submission</h3>
+            <p id = "modal-doc-name" style="font-weight: bold; color: #ffd400; margin-bottom: 10px;">Document Name</p>
+            
+            <div id="modal-preview-area" style="width: 100%; height: 350px; background: #2a2a2a; border-radius: 8px; margin-bottom: 15px; overflow: hidden; border: 1px solid #444;">
+                <p style="color: #888; text-align: center; padding-top: 150px;">Loading preview...</p>
+            </div>
+
+            <textarea id="supervisorRemarks" placeholder="Add remarks or reasons for approval/rejection..."></textarea>
+            
+            <div class="modal-btns">
+                <button id="btn-approve" class="btn-success">Approve</button>
+                <button id="btn-reject" class="btn-danger">Reject</button>
+                <button onclick="closeReviewModal()" class="btn-ghost">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+<script type="module" src="/js/checkstudentreq.js"></script>
+
+</html>

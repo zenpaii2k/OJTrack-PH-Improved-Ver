@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — Batch Management</title>
+
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/batch.css">
+</head>
+
+<body>
+    <!-- SIDEBAR -->
+    <nav class="side-navbar" aria-label="Adviser navigation">
+        <div class="sidebar-logo">
+            <a href="supervisordashboard.html">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Adviser Portal</div>
+
+        <nav class="nav-links">
+            <a href="supervisordashboard.html"  class="nav-item">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checkstudentreq.html"      class="nav-item">✔️ <span class="nav-label">Requirements</span></a>
+            <a href="batchmanagement.html"      class="nav-item active" aria-current="page">📁 <span class="nav-label">Manage Batch</span></a>
+            <a href="checkstudentreports.html"  class="nav-item">📄 <span class="nav-label">Reports</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="supervisoraccount.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <div class="main-wrapper">
+
+        <!-- HEADER -->
+        <header class="dashboard-header">
+            <div class="page-title-area">
+                <h3>Batch Management</h3>
+                <p>Create cohorts, add students, and track progress per group.</p>
+            </div>
+
+            <div class="header-tools">
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                    🔔
+                    <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                </button>
+                    <div id="notif-modal" class="notif-dropdown">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+                    <div id="profile-menu" class="profile-pop">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Adviser Name</strong>
+                            <p id="user-full-email"></p>
+                        </div>
+                        <hr>
+                        <a href="supervisoraccount.html" class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN BODY -->
+        <main class="batch-main">
+
+            <!-- ACTION BAR -->
+            <div class="batch-action-bar">
+                <div class="batch-search-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input
+                        type="text"
+                        id="batch-search"
+                        class="batch-search-input"
+                        placeholder="Search batches by name or course…"
+                        autocomplete="off">
+                </div>
+                <button id="openModalBtn" class="btn btn-gold">
+                    ➕ Create New Batch
+                </button>
+            </div>
+
+            <!-- BATCH STATS ROW -->
+            <div class="batch-stat-row" id="batch-stats-row">
+                <div class="batch-mini-stat">
+                    <span class="batch-mini-val" id="bstat-total">—</span>
+                    <span class="batch-mini-label">Total Batches</span>
+                </div>
+                <div class="batch-mini-stat">
+                    <span class="batch-mini-val" id="bstat-students">—</span>
+                    <span class="batch-mini-label">Total Students</span>
+                </div>
+                <div class="batch-mini-stat">
+                    <span class="batch-mini-val" id="bstat-active">—</span>
+                    <span class="batch-mini-label">Active</span>
+                </div>
+            </div>
+
+            <!-- BATCH CARDS GRID -->
+            <div id="batchContainer" class="batch-grid">
+                <div class="batch-loading">
+                    <div class="skeleton" style="height:160px; border-radius:12px;"></div>
+                    <div class="skeleton" style="height:160px; border-radius:12px;"></div>
+                    <div class="skeleton" style="height:160px; border-radius:12px;"></div>
+                </div>
+            </div>
+
+        </main>
+    </div><!-- /main-wrapper -->
+
+    <!-- ════════════════════════════
+         CREATE BATCH MODAL
+    ════════════════════════════ -->
+    <div id="createBatchModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+        <div class="modal-card">
+            <button class="close-modal-btn" id="close-create-modal" aria-label="Close">&times;</button>
+            <h2 class="modal-title" id="modal-create-title">📁 Create New Batch</h2>
+
+            <form id="createBatchForm">
+                <div class="input-group" style="margin-bottom:16px;">
+                    <label for="batchName">Batch Name <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="batchName" placeholder="e.g., BSIT-401 AY 2025-2026" required maxlength="80">
+                </div>
+
+                <div class="input-group" style="margin-bottom:16px;">
+                    <label for="batchCourse">Course / Program <span style="color:var(--danger)">*</span></label>
+                    <select id="batchCourse" required>
+                        <option value="" disabled selected>Select course…</option>
+                        <option>BACOMM</option><option>BMMA</option><option>BSAIS</option>
+                        <option>BSBA</option><option>BSCpE</option><option>BSCS</option>
+                        <option>BSHM</option><option>BSIT</option><option>BSTM</option>
+                        <option>Mixed</option>
+                    </select>
+                </div>
+
+                <div class="input-group" style="margin-bottom:20px;">
+                    <label for="academicYear">Academic Year <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="academicYear" placeholder="2025-2026" required maxlength="12" pattern="\d{4}-\d{4}">
+                </div>
+
+                <div id="create-batch-error" class="error-banner" style="display:none;margin-bottom:12px;"></div>
+
+                <div style="display:flex; gap:10px;">
+                    <button type="button" class="btn btn-outline" id="cancel-create-btn" style="flex:1;">Cancel</button>
+                    <button type="submit"  class="btn btn-gold"    style="flex:2;">Create Batch</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════
+         STUDENT LIST MODAL
+    ════════════════════════════ -->
+    <div id="studentListModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-student-title">
+        <div class="modal-card wide-modal">
+            <button class="close-modal-btn" id="close-student-modal" aria-label="Close">&times;</button>
+
+            <div class="student-modal-header">
+                <div>
+                    <h2 class="modal-title" id="currentBatchTitle" style="margin-bottom:4px;">Batch Students</h2>
+                    <p id="student-modal-sub" style="font-size:0.82rem; color:var(--text-secondary);">Manage students in this batch</p>
+                </div>
+                <div class="student-modal-stat">
+                    <span class="batch-mini-val" id="modal-student-count">0</span>
+                    <span class="batch-mini-label">Students</span>
+                </div>
+            </div>
+
+            <!-- INVITE LINK GENERATOR -->
+            <div class="invite-section">
+                <h4 style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:10px; font-weight:600;">
+                    🔗 Invite Students via Link
+                </h4>
+                <div class="invite-row">
+                    <input
+                        type="email"
+                        id="studentEmailSearch"
+                        class="invite-email-input"
+                        placeholder="Student email (optional filter)…"
+                        autocomplete="off">
+                    <button class="btn btn-primary" id="generateInviteBtn">Generate Invite Link</button>
+                </div>
+                <div id="invite-link-output" class="invite-link-box" style="display:none;">
+                    <input type="text" id="invite-link-field" readonly class="invite-link-field">
+                    <button class="btn btn-outline btn-sm" id="copy-invite-btn">📋 Copy</button>
+                </div>
+                <p class="invite-hint">
+                    Students must register using this link to be automatically assigned to this batch.
+                </p>
+            </div>
+
+            <!-- STUDENT TABLE -->
+            <div style="overflow-x:auto; max-height:340px; overflow-y:auto; margin-top:4px;">
+                <table class="dashboard-table" id="batch-student-table">
+                    <thead>
+                        <tr>
+                            <th>STUDENT</th>
+                            <th>COURSE</th>
+                            <th>SECTION</th>
+                            <th>HOURS</th>
+                            <th>PROGRESS</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchStudentList">
+                        <tr><td colspan="6" class="empty-text">No students yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/batchmanagement.js"></script>
+</body>
+</html>

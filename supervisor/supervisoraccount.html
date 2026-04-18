@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+     <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+     
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/account.css">
+    <title>OJTrack PH - Adviser Profile</title>
+</head>
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Adviser navigation">
+        <div class="sidebar-logo">
+            <a href="supervisordashboard.html">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Adviser Portal</div>
+
+        <nav class="nav-links">
+            <a href="supervisordashboard.html"  class="nav-item active" aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checkstudentreq.html"      class="nav-item">✔️ <span class="nav-label">Requirements</span></a>
+            <a href="batchmanagement.html"      class="nav-item">📁 <span class="nav-label">Manage Batch</span></a>
+            <a href="checkstudentreports.html"  class="nav-item">📄 <span class="nav-label">Reports</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="supervisoraccount.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back, Adviser!</h3>
+                <p id="greeting-sub">Here's your students' overview.</p>
+            </div>
+
+            <div class="header-tools">
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                    🔔
+                    <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                    </button>
+                        <div id="notif-modal" class="notif-dropdown">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+                    <div id="profile-menu" class="profile-pop">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Adviser Name</strong>
+                            <p id="user-full-email"></p>
+                        </div>
+                        <hr>
+                        <a href="supervisoraccount.html" class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="account-layout">
+            <section class="profile-summary-card">
+                <div class="summary-content">
+                    <div class="user-id-box">
+                        <h3 class="student-name" id="display-name">Loading...</h3>
+                        <p class="student-id">STAFF ID: <span id="display-staff-id">---</span></p>
+                    </div>
+                    <div class="info-stats-grid">
+                        <div class="stat-item"><strong>SCHOOL:</strong><p id="display-dept">---</p></div>
+                        <div class="stat-item"><strong>COURSES:</strong><p id="display-courses" class="highlight-yellow">---</p></div>
+                        <div class="stat-item"><strong>TOTAL STUDENTS:</strong><p id="display-student-count">0</p></div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="main-content-grid">
+                <aside class="settings-sidebar">
+                    <h3 class="sidebar-header">Settings</h3>
+                    <ul class="settings-list">
+                        <li class="nav-item active" data-section="settings-content">
+                            <span class="icon">⚙️</span> Security
+                        </li>
+                        <li class="nav-item" data-section="profile-content">
+                            <span class="icon">👤</span> Adviser Profile
+                        </li>
+                        <li class="nav-item" data-section="batch-content">
+                            <span class="icon">📁</span> My Managed Batch
+                        </li>
+
+                    </ul>
+                </aside>
+
+                <section class="info-display-box">
+                    <div id="settings-content" class="content-section">
+                        <h3 class="section-title">Security</h3>
+
+                         <div class="password-box">
+                            <h4 class="sub-section-title">🔒 Change Password</h4>
+                            <form id="password-form">
+                                <div class = "password-holder">
+                                <input type="password" placeholder="New Password" id="new-password" required>
+                                </div>
+                                <div class = "password-holder">
+                                <input type="password" placeholder="Confirm New Password" id="confirm-password" required>
+                                </div>
+                                <button class = "submit-pass" type="submit">Update Password</button>
+                            </form>
+                        </div>
+
+                    </div>
+
+                    <div id="profile-content" class="content-section" style="display:none;">
+                        <h3 class="section-title">Adviser Profile</h3>
+                        <div class="profile-details-form">
+                            <div class="form-row">
+                                <label>Full Name</label>
+                                <input type="text" id="profile-fullname" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                            </div>
+                             <div class="form-row">
+                                <label>Designation / Role</label>
+                                <input type="text" id="profile-designation" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                            </div>                            
+                            <div class="form-row">
+                                <label>Official Email</label>
+                                <input type="email" id="profile-email" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                            </div>
+                            <div class="form-row">
+                                <label>Direct Contact Number </label>
+                                <input type="text" id="profile-number" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="profile-content" class="content-section" style="display:none;">
+                    </div>
+
+                        <div id="batch-content" class="content-section" style="display:none;">
+                            <h3 class="section-title">My Managed Batch</h3>
+                            <p class="section-subtitle" style="color: #888; margin-bottom: 20px;">List of students currently assigned to your supervision.</p>
+                            
+                            <div id="batch-groups-wrapper" class="batch-groups-container">
+                                <p class="loading-text">Fetching student records...</p>
+                            </div>
+                        </div>
+
+            </div>
+        </main>
+    </div>
+      
+</body>
+
+    <script type="module" src="/js/supervisoraccount.js"></script>
+
+</html>

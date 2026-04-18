@@ -1,0 +1,299 @@
+/* ─── batch.css ──────────────────────────────────────────────
+   Page-specific styles for supervisor/batchmanagement.html.
+   Shared tokens (sidebar, header, stat cards, tables) → shared.css
+   ─────────────────────────────────────────────────────────── */
+
+/* Main content area */
+.batch-main {
+    padding: 24px;
+}
+
+/* ─── ACTION BAR ────────────────────────────────────────────── */
+.batch-action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.batch-search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 360px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+.batch-search-input {
+    width: 100%;
+    padding: 10px 13px 10px 36px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    box-sizing: border-box;
+}
+
+.batch-search-input:focus {
+    border-color: var(--brand-gold);
+    box-shadow: 0 0 0 3px var(--brand-gold-dim);
+}
+
+/* ─── MINI STAT ROW ──────────────────────────────────────────── */
+.batch-stat-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.batch-mini-stat {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 100px;
+    gap: 2px;
+}
+
+.batch-mini-val {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--brand-gold);
+    line-height: 1;
+}
+
+.batch-mini-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+/* ─── BATCH CARDS GRID ───────────────────────────────────────── */
+.batch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.batch-loading {
+    display: contents;
+}
+
+/* Individual batch card */
+.batch-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: box-shadow var(--transition), border-color var(--transition), transform var(--transition);
+    cursor: default;
+}
+
+.batch-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-mid);
+    transform: translateY(-2px);
+}
+
+.batch-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.batch-card-name {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
+.batch-card-year {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.batch-card-course-badge {
+    background: var(--brand-gold-dim);
+    border: 1px solid rgba(255,212,0,0.25);
+    color: #a87800;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.light-theme .batch-card-course-badge {
+    color: #7a5500;
+}
+
+/* Student count in batch card */
+.batch-card-count {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Progress section */
+.batch-card-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.batch-card-progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Card action buttons */
+.batch-card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.batch-card-actions .btn {
+    flex: 1;
+    justify-content: center;
+    font-size: 0.8rem;
+}
+
+/* Active / archived badge on card */
+.batch-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.batch-status-dot.archived { background: var(--text-muted); }
+
+/* ─── WIDE STUDENT MODAL ────────────────────────────────────── */
+.wide-modal {
+    max-width: 720px !important;
+}
+
+.student-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+    gap: 16px;
+}
+
+.student-modal-stat {
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* ─── INVITE SECTION ────────────────────────────────────────── */
+.invite-section {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.invite-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.invite-email-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.invite-email-input:focus {
+    border-color: var(--brand-gold);
+    box-shadow: 0 0 0 3px var(--brand-gold-dim);
+}
+
+.invite-link-box {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.invite-link-field {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-main);
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-family: monospace;
+    outline: none;
+    cursor: text;
+    user-select: all;
+}
+
+.invite-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* Error banner in modal */
+.error-banner {
+    background: var(--danger-dim);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: var(--danger);
+}
+
+/* ─── RESPONSIVE ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .batch-action-bar { flex-direction: column; align-items: stretch; }
+    .batch-search-wrap { max-width: 100%; }
+    .batch-stat-row { justify-content: space-around; }
+    .batch-grid { grid-template-columns: 1fr; }
+    .invite-row { flex-direction: column; }
+}

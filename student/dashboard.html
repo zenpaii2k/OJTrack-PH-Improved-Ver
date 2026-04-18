@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+      *** ANTI-FLASH SCRIPT — Keep this first! ***
+      Reads theme from localStorage BEFORE body renders to prevent
+      a visible white-to-dark flicker on page load.
+    -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('ojtrack-theme') || 'dark';
+            document.documentElement.className = t + '-theme';
+        })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OJTrack PH Student Dashboard">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — Student Dashboard</title>
+
+    <!-- Shared Design System (replaces old dashboard.css) -->
+    <link rel="stylesheet" href="/css/shared.css">
+    <!-- Page-specific overrides only -->
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+
+<body>
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR NAVIGATION
+    ═══════════════════════════════════════════ -->
+    <nav class="side-navbar" aria-label="Student navigation">
+        <div class="sidebar-logo">
+            <a href="dashboard.html" title="Go to Dashboard">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
+            </a>
+            <span>OJTrack PH</span>
+        </div>
+
+        <div class="nav-section-label">Student Portal</div>
+
+        <nav class="nav-links">
+            <a href="dashboard.html"      class="nav-item active"   aria-current="page">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="ojtattendance.html"  class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checklist.html"      class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
+            <a href="generatepdf.html"    class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
+            <a href="feedback.html"       class="nav-item">💬 <span class="nav-label">Feedback</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="account.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+        <!-- TOP HEADER -->
+        <header class="dashboard-header" role="banner">
+            <div class="page-title-area">
+                <h3 id="greeting-text">Welcome back!</h3>
+                <p id="greeting-sub">Loading your OJT summary…</p>
+            </div>
+
+            <div class="header-tools">
+                <!-- NOTIFICATION BELL -->
+                <div class="notif-wrapper" role="region" aria-label="Notifications">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
+                        🔔
+                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
+                    </button>
+                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
+                        <div class="notif-header">
+                            <span>Notifications</span>
+                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+                        </div>
+                        <div id="notif-list" class="notif-scroll-area">
+                            <div class="notif-empty">No new notifications.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE PILL -->
+                <div class="profile-dropdown">
+                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
+                        <span id="user-display-name">Loading…</span>
+                        <div class="avatar-circle" id="avatar-initial">?</div>
+                    </button>
+
+                    <div id="profile-menu" class="profile-pop" role="menu">
+                        <div class="profile-info">
+                            <strong id="user-display-name-pop">Student Name</strong>
+                            <p id="user-full-email">email@example.com</p>
+                        </div>
+                        <hr>
+                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
+                        <hr>
+                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- PAGE BODY -->
+        <main class="main-layout" id="main-content">
+
+            <!-- LEFT COLUMN -->
+            <div class="content-area">
+
+                <!-- STAT CARDS -->
+                <section class="stats-overview stats-3col" aria-label="OJT Progress Summary">
+
+                    <div class="stat-card gold">
+                        <span class="stat-icon">🕒</span>
+                        <div class="stat-label">Completed Hours</div>
+                        <div class="stat-value" id="hrs-completed">0<span style="font-size:1rem;font-weight:400">h</span></div>
+                        <div class="stat-sub" id="hrs-total-sub">of 0h required</div>
+                        <div class="progress-bar-track" title="OJT completion progress">
+                            <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <span class="stat-icon">⏳</span>
+                        <div class="stat-label">Remaining Hours</div>
+                        <div class="stat-value" id="hrs-remaining">—<span style="font-size:1rem;font-weight:400">h</span></div>
+                        <div class="stat-sub" id="days-sub">Calculating…</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <span class="stat-icon">📈</span>
+                        <div class="stat-label">OJT Progress</div>
+                        <!-- SVG Progress Ring -->
+                        <div class="progress-ring-container" style="margin-top:6px;">
+                            <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+                                <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8"/>
+                                <circle id="ring-circle" cx="40" cy="40" r="32" fill="none"
+                                    stroke="#2ecc71" stroke-width="8"
+                                    stroke-dasharray="201.06" stroke-dashoffset="201.06"
+                                    stroke-linecap="round" style="transition:stroke-dashoffset 0.7s ease"/>
+                            </svg>
+                            <div class="progress-ring-label">
+                                <span class="pct" id="progress-pct">0%</span>
+                                <span class="pct-sub">done</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- OJT INFO STRIP (company, batch, adviser) -->
+                <div class="info-strip" id="info-strip">
+                    <span class="info-chip" id="chip-company">🏢 Loading…</span>
+                    <span class="info-chip" id="chip-batch">📁 —</span>
+                    <span class="info-chip" id="chip-adviser">👨‍🏫 —</span>
+                    <span class="info-chip" id="chip-course">🎓 —</span>
+                </div>
+
+                <!-- RECENT ATTENDANCE LOGS -->
+                <div class="table-card">
+                    <div class="table-card-header">
+                        <h3>📋 Recent Attendance Logs</h3>
+                        <a href="ojtattendance.html" class="btn btn-outline btn-sm">View All</a>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="dashboard-table" aria-label="Recent attendance logs">
+                            <thead>
+                                <tr>
+                                    <th>DATE</th>
+                                    <th>TIME IN</th>
+                                    <th>TIME OUT</th>
+                                    <th>HOURS</th>
+                                    <th>STATUS</th>
+                                    <th>FILE</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-tbody">
+                                <tr>
+                                    <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">
+                                        Syncing logs…
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ADVISER FEEDBACK -->
+                <div class="widget" style="margin-top:16px;">
+                    <h3 style="color:var(--brand-gold);margin-bottom:14px;">💬 Adviser Feedback</h3>
+                    <div id="feedback-container" class="feedback-list">
+                        <p class="empty-text">No feedback yet.</p>
+                    </div>
+                </div>
+
+            </div><!-- /content-area -->
+
+            <!-- RIGHT SIDEBAR -->
+            <aside class="sidebar-widgets" aria-label="Widgets">
+
+                <!-- MINI CALENDAR -->
+                <div class="widget cal-widget">
+                    <div class="cal-header">
+                        <button id="prevMonth" class="cal-nav" aria-label="Previous month">‹</button>
+                        <h4 id="monthDisplay">—</h4>
+                        <button id="nextMonth" class="cal-nav" aria-label="Next month">›</button>
+                    </div>
+                    <div id="mini-calendar" class="cal-grid" role="grid" aria-label="Calendar"></div>
+                </div>
+
+                <!-- QUICK ACTIONS -->
+                <div class="quick-actions">
+                    <h3>⚡ Quick Actions</h3>
+                    <div class="action-stack">
+                        <a href="ojtattendance.html" class="action-link">🕒 Clock In / Out</a>
+                        <a href="generatepdf.html"   class="action-link">📄 Generate Report</a>
+                        <a href="checklist.html"     class="action-link">✔️ OJT Checklist</a>
+                        <a href="feedback.html"      class="action-link">💬 View Feedback</a>
+                        <a href="account.html"       class="action-link">👤 Edit Profile</a>
+                    </div>
+                </div>
+
+            </aside>
+
+        </main>
+    </div><!-- /main-wrapper -->
+
+    <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>
