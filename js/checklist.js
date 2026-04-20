@@ -1,90 +1,34 @@
-import { auth, db } from "../firebase-config.js";
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { protectPage } from "../authguard.js";
-import { collection, setDoc, doc, updateDoc, onSnapshot, serverTimestamp, getDoc, query, limit, where, arrayUnion} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import {
-    initTheme,
-    setupThemeToggle,
-    setupProfileDropdown,
-    setupNotifDropdown,
-    populateHeaderUser,
-    sanitizeText,
-    formatTimestamp,
-} from '../js/theme.js';
+/**
+ * OJTrack PH — checklist.js
+ * ─────────────────────────────────────────────────────────────
+ * FIXES:
+ *  1. setupThemeToggle('sidebar-theme-btn') and ('theme-toggle-btn') — WAS MISSING
+ *  2. setupProfileDropdown() and setupNotifDropdown() — WAS MISSING
+ *  3. logout wired for both buttons — WAS MISSING
+ *  4. Using shared populateHeaderUser (safer)
+ *  5. Preserved all original checklist logic (upload, preview, etc.)
+ * ─────────────────────────────────────────────────────────────
+ */
 
+import { auth, db } from "../firebase-config.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { protectPage } from "../authguard.js";
+import {
+    collection, setDoc, doc, updateDoc, onSnapshot,
+    serverTimestamp, getDoc, query, where, limit, arrayUnion
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+    initTheme, setupThemeToggle, setupProfileDropdown,
+    setupNotifDropdown, populateHeaderUser, sanitizeText
+} from '../js/theme.js';
 import { setupNotificationSystem } from '../js/notifications.js';
 
+// ─── INIT THEME ───────────────────────────────────────────────
 initTheme();
 
-// --- AUTH & INITIALIZATION ---
-protectPage('student').then((user) => {
-    if (!user) return;
-
-    // Initialize UI Components
-    setupHeaderUI(user);
-    setupNotificationSystem(user.uid);
-    
-});
-
-// --- UI SETUP FUNCTIONS ---
-function setupHeaderUI(user) {
-    const userRef = doc(db, "users", user.uid);
-    getDoc(userRef).then((snap) => {
-        if (snap.exists()) {
-            const data = snap.data();
-            document.getElementById('user-display-name').innerText = data.name || "Student";
-            document.getElementById('user-display-name-pop').innerText = data.name || "Student";
-            document.getElementById('user-full-email').innerText = user.email;
-        }
-    });
-
-    const profileTrigger = document.getElementById('profile-trigger');
-    const profileMenu = document.getElementById('profile-menu');
-    profileTrigger.onclick = (e) => {
-        e.stopPropagation();
-        profileMenu.classList.toggle('show');
-    };
-
-    const notifBtn = document.getElementById('notif-btn');
-    const notifModal = document.getElementById('notif-modal');
-    notifBtn.onclick = (e) => {
-        e.stopPropagation();
-        notifModal.classList.toggle('show');
-    };
-
-    document.getElementById('logout-link').onclick = () => {
-        signOut(auth).then(() => window.location.replace("/index.html"));
-    };
-
-    window.addEventListener('click', () => {
-        if(profileMenu) profileMenu.classList.remove('show');
-        if(notifModal) notifModal.classList.remove('show');
-    });
-}
-
-window.dismissNotif = async (id, type, docId) => {
-    try {
-        let ref;
-
-        if (type === "approval") {
-            ref = doc(db, "checklist", docId);
-        } else if (type === "feedback") {
-            ref = doc(db, "students", user.uid, "feedback", docId);
-        }
-
-        if (!ref) return;
-
-        await updateDoc(ref, {
-            dismissedBy: arrayUnion(user.uid)
-        });
-
-    } catch (e) {
-        console.error("Dismiss error:", e);
-    }
-};
-
+// ─── DOCUMENT DEFINITIONS ─────────────────────────────────────
 const docOptions = {
-    'Forms': [
+   'Forms': [
         { val: 'info-sheet', text: 'Information Sheet' },
         { val: 'resume', text: 'Resume Template' },
         { val: 'medical', text: 'Medical Letter' },
@@ -103,148 +47,164 @@ const docOptions = {
     ]
 };
 
-const allDocKeys = [...docOptions.Forms, ...docOptions.Requirements];
+const allDocKeys = [...docOptions["Forms"], ...docOptions["Requirements"]];
 
-let currentStudentDocs = {}; // Local cache to store document statuses
+let currentStudentDocs = {};
 
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        // Sync Theme on load
-        const savedTheme = localStorage.getItem('ojtrack-theme') || 'dark';
-        document.body.className = savedTheme + '-theme';
-        document.documentElement.className = savedTheme + '-theme';
- 
-        listenToChecklist(user.uid);
-        setupHeaderUI(user); 
-        
-    } else {
-        window.location.replace("/index.html");
-    }
+// ─── AUTH ────────────────────────────────────────────────────
+protectPage('student').then((user) => {
+    if (!user) return;
+
+    // ✅ FIX: Wire ALL theme + UI controls (was missing before)
+    setupThemeToggle('theme-toggle-btn');
+    setupThemeToggle('sidebar-theme-btn');
+    setupProfileDropdown();
+    setupNotifDropdown();
+    setupNotificationSystem(user.uid);
+
+    // ✅ FIX: Proper user profile population
+    loadUserProfile(user);
+
+    // ✅ Wire logout for both buttons
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () =>
+            signOut(auth).then(() => window.location.replace('/index.html'))
+        );
+    });
+
+    listenToChecklist(user.uid);
 });
 
-    function listenToChecklist(uid) {
-    const tbody = document.getElementById('checklist-tbody');
-    const progressBar = document.getElementById('overall-progress-bar');
+// ─── USER PROFILE ────────────────────────────────────────────
+async function loadUserProfile(user) {
+    try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const name = data.name
+            || `${data.firstName || ''} ${data.surname || ''}`.trim()
+            || 'Student';
+        populateHeaderUser(name, user.email);
+    } catch (e) {
+        console.error('[Checklist] loadUserProfile:', e);
+    }
+}
+
+// ─── LISTEN TO CHECKLIST ──────────────────────────────────────
+function listenToChecklist(uid) {
+    const tbody         = document.getElementById('checklist-tbody');
+    const progressBar   = document.getElementById('overall-progress-bar');
     const completionText = document.getElementById('completion-text');
-    
-    onSnapshot(collection(db, "checklist"), (snapshot) => {
-        currentStudentDocs = {}; 
+
+    // ✅ Query only THIS student's checklist docs (efficient)
+    const q = query(
+        collection(db, "checklist"),
+        where("uid", "==", uid)
+    );
+
+    onSnapshot(q, (snapshot) => {
+        currentStudentDocs = {};
         let approvedCount = 0;
-        const totalDocs = allDocKeys.length;
+        const totalDocs   = allDocKeys.length;
 
         snapshot.docs.forEach(d => {
             const data = d.data();
-            if (data.uid === uid) {
-                currentStudentDocs[data.formKey] = data;
-                // Count as "done" if status is Approved
-                if (data.status === "Approved") approvedCount++;
-            }
+            currentStudentDocs[data.formKey] = { ...data, docId: d.id };
+            if (data.status === "Approved") approvedCount++;
         });
 
-        // Update Progress Bar UI
-        const percentage = Math.round((approvedCount / totalDocs) * 100);
-        progressBar.style.width = `${percentage}%`;
-        completionText.innerText = `${approvedCount} of ${totalDocs} documents approved (${percentage}%)`;
+        // Update progress bar
+        const percentage = totalDocs > 0 ? Math.round((approvedCount / totalDocs) * 100) : 0;
+        if (progressBar)    progressBar.style.width = `${percentage}%`;
+        if (completionText) completionText.textContent =
+            `${approvedCount} of ${totalDocs} documents approved (${percentage}%)`;
 
+        if (!tbody) return;
         tbody.innerHTML = "";
-        
-        allDocKeys.forEach(opt => {
-            const data = currentStudentDocs[opt.val];
-            const row = document.createElement('tr');
-            
-            // Status Logic
-            const status = data ? data.status : 'Not Submitted';
-            const statusClass = status.toLowerCase().replace(/\s/g, '-');
-            
-            // Date Logic
-            const dateDisplay = data ? data.dateSubmitted : '<span class="text-muted">No date</span>';
-            
-            row.innerHTML = `
-                <td class="doc-name-cell">
-                    <strong>${opt.text}</strong>
-                    ${data && data.remarks !== "Waiting for review" ? `<p class="remark-text">Note: ${data.remarks}</p>` : ''}
-                </td>
-                <td>${dateDisplay}</td>
-                <td>
-                    <span class="status-pill ${statusClass}">${status}</span>
-                </td>
-                <td>
-                    <div class="row-actions">
-                        ${data ? `<button class="btn-icon-view" onclick="previewDoc('${data.fileData}')" title="View Document">👁️</button>` : ''}
-                        ${(!data || data.status === 'Rejected') ? `<span class="action-required">⚠️ Upload Needed</span>` : ''}
-                    </div>
-                </td>`;
-            tbody.appendChild(row);
+
+        // Section: Forms
+        const formsHeader = document.createElement('tr');
+        formsHeader.className = 'section-divider';
+        formsHeader.innerHTML = `<td colspan="4">📄 Forms</td>`;
+        tbody.appendChild(formsHeader);
+
+        docOptions["Forms"].forEach(opt => renderChecklistRow(opt, tbody, uid));
+
+        // Section: Requirements
+        const reqsHeader = document.createElement('tr');
+        reqsHeader.className = 'section-divider';
+        reqsHeader.innerHTML = `<td colspan="4">📋 Requirements</td>`;
+        tbody.appendChild(reqsHeader);
+
+        docOptions["Requirements"].forEach(opt => renderChecklistRow(opt, tbody, uid));
+
+    }, err => console.error('[Checklist] listener error:', err));
+}
+
+function renderChecklistRow(opt, tbody, uid) {
+    const data      = currentStudentDocs[opt.val];
+    const status    = data ? data.status : 'Not Submitted';
+    const statusCls = status.toLowerCase().replace(/\s+/g, '-');
+    const dateStr   = data ? data.dateSubmitted : '<span class="text-muted">—</span>';
+    const hasFile   = data && data.fileData && data.fileData !== "";
+    const isLocked  = data && (data.status === 'Pending Approval' || data.status === 'Approved');
+    const remarks   = data && data.remarks && data.remarks !== 'Waiting for review'
+        ? `<p class="remark-text">📝 ${sanitizeText(data.remarks)}</p>` : '';
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td class="doc-name-cell">
+            <strong>${sanitizeText(opt.text)}</strong>
+            ${remarks}
+        </td>
+        <td>${dateStr}</td>
+        <td><span class="status-pill ${statusCls}">${sanitizeText(status)}</span></td>
+        <td>
+            <div class="row-actions">
+                ${hasFile
+                    ? `<button class="btn-icon-view" onclick="previewDoc('${data.docId}')" title="View Document">👁️ View</button>`
+                    : ''}
+                ${!isLocked
+                    ? `<button class="btn-icon-upload" onclick="openUploadModal('${opt.val === docOptions['Forms'].find(f=>f.val===opt.val)?.val ? 'Forms' : 'Requirements'}', '${opt.val}')" title="Upload">📤 Upload</button>`
+                    : `<span style="font-size:0.75rem;color:var(--text-muted);">🔒 ${sanitizeText(status)}</span>`}
+            </div>
+        </td>`;
+    tbody.appendChild(row);
+}
+
+// ─── GLOBAL FUNCTIONS (called from HTML onclick) ───────────────
+
+window.openUploadModal = (type, specificKey = null) => {
+    const modal    = document.getElementById('uploadModal');
+    const selector = document.getElementById('formSelector');
+
+    const options = specificKey
+        ? docOptions[type].filter(o => o.val === specificKey)
+        : docOptions[type].filter(opt => {
+            const docData = currentStudentDocs[opt.val];
+            return !docData || docData.status === "Rejected";
         });
 
-        // Inside your onSnapshot or render function for the checklist table:
-function renderChecklistRow(docId, data) {
-    const row = document.createElement('tr');
-    
-    // Logic to determine if a file is actually present
-    const hasFile = data.fileData && data.fileData !== "";
-    const isRejected = data.status === "Rejected";
-
-    row.innerHTML = `
-        <td>${data.formKey.toUpperCase()}</td>
-        <td>${data.status}</td>
-        <td>
-            ${hasFile ? 
-                `<button onclick="viewFile('${data.fileData}')" class="btn-view">View File</button>` : 
-                `<span class="no-file">No File Uploaded</span>`
-            }
-        </td>
-        <td>
-            ${(!hasFile || isRejected) ? 
-                `<input type="file" id="file-${docId}" onchange="handleUpload('${docId}', this)">` : 
-                `<span class="text-locked">Locked (Pending/Approved)</span>`
-            }
-        </td>
-    `;
-    return row;
-}
-
-        async function handleUpload(docId, input) {
-            const file = input.files[0];
-            if (!file) return;
-
-            // Convert to Base64 (as you are likely doing)
-            const base64 = await convertToBase64(file);
-
-            try {
-                await updateDoc(doc(db, "checklist", docId), {
-                    fileData: base64,
-                    status: "Pending", // Reset status to Pending for Adviser to see
-                    dateSubmitted: new Date().toLocaleDateString(),
-                    remarks: "" // Clear old rejection remarks
-                });
-                alert("Re-uploaded successfully!");
-            } catch (e) {
-                alert("Upload failed: " + e.message);
-            }
-        }
-    });
-}
-
-// Global functions
-window.openUploadModal = (type) => {
-    const modal = document.getElementById('uploadModal');
-    const selector = document.getElementById('formSelector');
-    
-    // FILTER LOGIC: Only show options that haven't been submitted OR are Rejected
-    const availableOptions = docOptions[type].filter(opt => {
-        const docData = currentStudentDocs[opt.val];
-        // If doc doesn't exist, it's available. If it exists, it's only available if Rejected.
-        return !docData || docData.status === "Rejected";
-    });
-
-    if (availableOptions.length === 0) {
-        alert(`All ${type} are either Pending or Approved. No further uploads required.`);
+    if (options.length === 0) {
+        alert(`All ${type} are either Pending or Approved. No uploads needed.`);
         return;
     }
 
-    document.getElementById('modalTitle').innerText = `Add OJT ${type}`;
-    selector.innerHTML= availableOptions.map(opt => `<option value="${opt.val}">${opt.text}</option>`).join('');
+    document.getElementById('modalTitle').innerText = `Upload OJT ${type}`;
+    selector.innerHTML = options.map(o => `<option value="${o.val}">${o.text}</option>`).join('');
+    modal.style.display = 'flex';
+};
+
+window.previewDoc = (docId) => {
+    const modal     = document.getElementById('previewModal');
+    const container = document.getElementById('previewContainer');
+    // Find the document by docId
+    const docData = Object.values(currentStudentDocs).find(d => d.docId === docId);
+    if (!docData?.fileData) {
+        alert('No file available to preview.');
+        return;
+    }
+    container.innerHTML = `<iframe src="${docData.fileData}" width="100%" height="100%" frameborder="0"></iframe>`;
     modal.style.display = 'flex';
 };
 
@@ -252,65 +212,66 @@ document.getElementById('btn-cancel-upload').onclick = () => {
     document.getElementById('uploadModal').style.display = 'none';
 };
 
-window.previewDoc = (base64) => {
-    const modal = document.getElementById('previewModal');
-    const container = document.getElementById('previewContainer');
-    container.innerHTML = `<iframe src="${base64}" width="100%" height="100%" frameborder="0"></iframe>`;
-    modal.style.display = 'flex';
-};
-
 document.getElementById('btn-close-preview').onclick = () => {
     document.getElementById('previewModal').style.display = 'none';
 };
 
 window.processUpload = async () => {
-    const user = auth.currentUser;
+    const user         = auth.currentUser;
     const selectedForm = document.getElementById('formSelector').value;
-    const fileInput = document.getElementById('fileInput');
-    const fileName = fileInput.files[0] ? fileInput.files[0].name : "No file selected";
+    const fileInput    = document.getElementById('fileInput');
 
     if (!fileInput.files[0]) return alert("Please select a file!");
+    if (!user) return alert("Not authenticated.");
 
-    // Security Check: Verify status one last time before allowing upload
+    // Security: verify status before allowing upload
     const existingDoc = currentStudentDocs[selectedForm];
     if (existingDoc && (existingDoc.status === "Pending Approval" || existingDoc.status === "Approved")) {
         alert("This document is already under review or approved.");
         return;
     }
 
+    // File size check (5MB limit for base64 in Firestore)
+    if (fileInput.files[0].size > 5 * 1024 * 1024) {
+        alert("File too large. Please upload a file under 5MB.");
+        return;
+    }
+
     const btn = document.querySelector('.btn-primary');
-    btn.disabled = true;
-    btn.innerText = "Uploading...";
+    if (btn) { btn.disabled = true; btn.innerText = "Uploading…"; }
 
     try {
         const reader = new FileReader();
         reader.readAsDataURL(fileInput.files[0]);
         reader.onload = async () => {
             const base64File = reader.result;
-            const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-
-            // Use studentUID_formKey as document ID to overwrite if it was previously rejected
-            await setDoc(doc(db, "checklist", `${user.uid}_${selectedForm}`), {
-                uid: user.uid,
-                studentName: user.displayName || "Student",
-                formKey: selectedForm,
-                fileData: base64File,
-                fileName: fileName,
-                dateSubmitted: dateStr,
-                status: "Pending Approval",
-                remarks: "Waiting for review",
-                timestamp: serverTimestamp()
+            const fileName   = fileInput.files[0].name;
+            const dateStr    = new Date().toLocaleDateString('en-US', {
+                month: 'short', day: '2-digit', year: 'numeric'
             });
 
-            alert("File submitted successfully.");
+            // ✅ Use schema-correct fields for checklist
+            await setDoc(doc(db, "checklist", `${user.uid}_${selectedForm}`), {
+                uid:           user.uid,
+                studentName:   auth.currentUser.displayName || "Student",
+                formKey:       selectedForm,
+                fileData:      base64File,
+                fileName:      fileName,
+                dateSubmitted: dateStr,
+                status:        "Pending Approval",
+                remarks:       "Waiting for review",
+                timestamp:     serverTimestamp(),
+                dismissedBy:   [],
+            });
+
+            alert("File submitted successfully!");
             document.getElementById('uploadModal').style.display = 'none';
-            fileInput.value = ''; // Reset file input
+            fileInput.value = '';
         };
     } catch (err) {
-        console.error(err);
-        alert("Upload failed.");
+        console.error('[Checklist] Upload failed:', err);
+        alert("Upload failed: " + err.message);
     } finally {
-        btn.disabled = false;
-        btn.innerText = "Submit File";
+        if (btn) { btn.disabled = false; btn.innerText = "Submit File"; }
     }
 };

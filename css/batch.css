@@ -200,6 +200,51 @@
 
 .batch-status-dot.archived { background: var(--text-muted); }
 
+.btn {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: #fff;
+}
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: #fff;
+}
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.batch-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.btn-delete-small {
+    padding: 5px 5px;
+    border-radius: 6px;
+    border: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+    background: #ef4444;
+    color: #fff;
+    text-align: center;
+}
+
 /* ─── WIDE STUDENT MODAL ────────────────────────────────────── */
 .wide-modal {
     max-width: 720px !important;

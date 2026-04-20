@@ -1,438 +1,338 @@
-:root {
-    /* Dark Theme (Default) */
-    --bg-main: #1a1a1a;
-    --bg-side: #242424;
-    --header-bg: #2d2d2d;
-    --card-bg: #333333;
-    --text-primary: #ffffff;
-    --text-dim: #bbbbbb;
-    --brand-yellow: #ffd400;
-    --brand-blue: #3b5998;
-    --border: #444;
+/* ─── ojtattendance.css ──────────────────────────────────────
+   Page-specific styles for student/ojtattendance.html.
+   All sidebar, header, widget, and token rules live in shared.css.
+   ─────────────────────────────────────────────────────────── */
+
+/* ─── PAGE LAYOUT ────────────────────────────────────────────── */
+.tracker-main {
+    padding: 22px 24px;
 }
 
-/* Light Theme Overrides */
-body.light-theme {
-    --bg-main: #f4f7f6;
-    --bg-side: #ffffff;
-    --header-bg: #ffffff;
-    --card-bg: #ffffff;
-    --text-primary: #222222;
-    --text-dim: #666666;
-    --border: #dddddd;
+.tracker-grid {
+    display: grid;
+    grid-template-columns: 1fr 290px;
+    gap: 20px;
+    align-items: start;
 }
 
-body {
-    background-color: var(--bg-main);
-    color: var(--text-primary);
-    margin: 0;
-    display: flex;
-    font-family: 'Segoe UI', Tahoma, sans-serif;
-    transition: background 0.3s ease;
-}
-
-/* Sidebar Navigation */
-.side-navbar {
-    width: 240px;
-    height: 100vh;
-    background-color: var(--bg-side);
-    border-right: 1px solid var(--border);
-    position: fixed;
+.tracker-sidebar {
     display: flex;
     flex-direction: column;
-    padding: 20px 0;
+    gap: 16px;
 }
 
-.sidebar-logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 20px 30px;
-    color: var(--brand-yellow);
-    font-weight: bold;
-    font-size: 1.4rem;
-}
-
-.sidebar-logo img { width: 35px; border-radius: 5px; }
-
-.nav-links { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; }
-
-.nav-item {
-    padding: 15px 25px;
-    text-decoration: none;
-    color: var(--text-primary);
-    font-weight: 500;
-    transition: 0.2s;
-    border-left: 4px solid transparent;
-}
-
-.nav-item:hover { background: rgba(255, 212, 0, 0.1); }
-
-.nav-item.active {
-    background: rgba(255, 212, 0, 0.15);
-    color: var(--brand-yellow);
-    border-left-color: var(--brand-yellow);
-}
-
-.page-title-area {
-     color: var(--brand-yellow);
-}
-
-/* Main Content Wrapper */
-.main-wrapper {
-    margin-left: 240px; /* Width of sidebar */
-    width: calc(100% - 240px);
-}
-
-.dashboard-header {
-    height: 70px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 30px;
-    border-bottom: 1px solid var(--border);
-    background-color: var(--bg-side);
-}
-
-.header-tools {
-    display: flex;
-}
-
-.icon-btn {
-    background: var(--card-bg);
+/* ─── LOG ENTRY CARD ─────────────────────────────────────────── */
+.log-card {
+    background: var(--bg-surface);
     border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 5px 5px 5px 15px;
-    border-radius: 30px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    margin-top: 5px;
-    margin-right: 10px;
-}
-
-.profile-pill {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 5px 5px 5px 15px;
-    border-radius: 30px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-}
-
-.avatar-circle {
-    width: 30px;
-    height: 30px;
-    background: var(--brand-blue);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.dropdown-content.profile-pop {
-    min-width: 240px;
-    padding: 15px;
-    background: var(--header-bg);
-    border: 1px solid var(--brand-yellow);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-}
-
-.profile-info { margin-bottom: 10px; }
-.profile-info strong { color: var(--brand-yellow); display: block; }
-.profile-info p { margin: 0; font-size: 0.8rem; opacity: 0.7; }
-
-.menu-link, .menu-link-btn, .logout-action {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: none;
-    color: var(--text-primary);
-    padding: 10px;
-    text-decoration: none;
-    font-size: 0.9rem;
-    cursor: pointer;
-    border-radius: 5px;
-}
-
-.menu-link:hover, .menu-link-btn:hover { background: rgba(255,255,255,0.05); }
-.logout-action { color: #ff4d4d; font-weight: bold; }
-
-.profile-btn {
-    background: #444;
-    border: 1px solid var(--brand-yellow);
-    color: white;
-    padding: 6px 15px;
-    border-radius: 20px;
-    cursor: pointer;
-}
-
-.dropdown-content {
-    display: none;
-    position: absolute;
-    right: 25px;
-    top: 60px;
-    background: #2d2d2d;
-    border: 1px solid var(--brand-yellow);
-    min-width: 200px;
-    border-radius: 8px;
-    padding: 5px;
-     z-index: 100;
-}
-
-.dropdown-content.show { 
-    display: inline-block; 
-}
-
-.page-title-area {
-     color: var(--brand-yellow);
-}
-
-.card-header {
+    border-radius: var(--radius-lg);
+    padding: 24px;
     margin-bottom: 20px;
 }
 
-/* The Grid Layout */
-.tracker-grid {
-    margin-top: 20px;
-    display: grid;
-    grid-template-columns: 1fr 350px; /* Main content vs Sidebar */
-    gap: 20px;
-    padding: 0 20px;
+.log-card .card-header {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
 }
 
-/* Time In & Time Out Horizontal Container */
+/* ─── TIME IN / OUT BOXES ─────────────────────────────────────── */
 .time-container {
-    display: flex;
-    justify-content: space-between;
-    gap: 15px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
     margin-bottom: 20px;
 }
 
 .time-box {
-    flex: 1; /* Makes both boxes equal width */
-    background-color: var(--card-bg);
-    padding: 15px;
-    border-radius: 12px;
-    border: 3px solid #1a1a1a;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    padding: 16px;
     text-align: center;
+    transition: border-color var(--transition);
 }
 
-.time-box label {
+.time-box:focus-within {
+    border-color: var(--brand-gold);
+    box-shadow: 0 0 0 3px var(--brand-gold-dim);
+}
+
+.time-box > label {
     display: block;
-    font-weight: bold;
-    font-size: 0.8rem;
-    margin-bottom: 10px;
-    color: #ccc;
-    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
 }
 
-/* Digital Clock Input Styling */
+/* Digital clock input cluster */
 .digital-clock {
-    background-color: var(--input-bg);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px;
-    border-radius: 8px;
-    border: 2px solid #000;
-    margin-bottom: 10px;
+    gap: 4px;
+    margin-bottom: 12px;
 }
 
-.digital-clock input {
-    width: 60px;
-    background: #444;
-    border: 1px solid var(--accent-yellow);
-    color: var(--accent-yellow);
+.digital-clock input[type="number"] {
+    width: 54px;
+    background: var(--bg-input);
+    border: 1px solid var(--brand-gold);
+    color: var(--brand-gold);
+    font-family: var(--font-display);
     font-size: 1.5rem;
+    font-weight: 700;
     text-align: center;
-    border-radius: 4px;
-    padding: 5px;
+    border-radius: var(--radius-sm);
+    padding: 6px 4px;
+    outline: none;
+    -moz-appearance: textfield;
 }
 
-.colon {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin: 0 5px;
-    color: var(--accent-yellow);
+.digital-clock input[type="number"]::-webkit-inner-spin-button,
+.digital-clock input[type="number"]::-webkit-outer-spin-button { display: none; }
+
+.digital-clock .colon {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--brand-gold);
+    user-select: none;
 }
 
 .digital-clock select {
-    background: var(--header-blue);
-    color: white;
+    background: var(--brand-blue);
+    color: #fff;
     border: none;
-    padding: 10px;
-    margin-left: 10px;
-    border-radius: 4px;
-    font-weight: bold;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.82rem;
     cursor: pointer;
+    outline: none;
+    margin-left: 4px;
 }
 
-/* Buttons */
+/* "Now" shortcut button */
 .now-btn {
     width: 100%;
-    background-color: var(--header-blue);
-    color: white;
+    background: var(--brand-blue);
+    color: #fff;
     border: none;
     padding: 8px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 600;
     cursor: pointer;
-    font-weight: bold;
-    transition: 0.3s;
+    transition: filter var(--transition);
 }
 
-.now-btn:hover {
-    background-color: #4a69ad;
+.now-btn:hover { filter: brightness(1.15); }
+
+/* ─── ATTACHMENT & NOTE FIELDS ────────────────────────────────── */
+.attendance-form .input-group {
+    margin-bottom: 16px;
 }
 
-.submit-log-btn {
-    width: 100%;
-    background-color: #555; /* Default gray like screenshot */
-    color: #aaa;
-    border: 2px solid #000;
-    padding: 15px;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    cursor: pointer;
-    margin-top: 10px;
-}
-
-.submit-log-btn:hover {
-    background-color: var(--header-blue);
-    color: white;
-}
-
-/* File & Note Inputs */
-.input-group {
-    margin-bottom: 15px;
-    text-align: left;
-}
-
-.input-group p {
-    font-size: 0.85rem;
-    margin-bottom: 5px;
-    font-weight: bold;
+.attendance-form .input-group > p {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
 }
 
 .file-label {
-    display: block;
-    background: #444;
-    border: 2px solid #000;
-    padding: 10px;
-    text-align: center;
-    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-elevated);
+    border: 2px dashed var(--border-mid);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
     cursor: pointer;
-    color: var(--accent-yellow);
+    color: var(--brand-gold);
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: border-color var(--transition), background var(--transition);
 }
 
-textarea {
-    width: 97%;
-    height: 80px;
-    background: #444;
-    border: 2px solid #000;
-    border-radius: 8px;
-    color: white;
-    padding: 10px;
-    resize: none;
+.file-label:hover {
+    border-color: var(--brand-gold);
+    background: var(--brand-gold-dim);
 }
 
-/* Sidebar Widgets */
-.side-widget {
-    background-color: var(--card-bg);
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 20px;
-    border: 2px solid #000;
+.attendance-form textarea {
+    width: 100%;
+    min-height: 80px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    padding: 10px 13px;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color var(--transition), box-shadow var(--transition);
 }
 
+.attendance-form textarea:focus {
+    border-color: var(--brand-gold);
+    box-shadow: 0 0 0 3px var(--brand-gold-dim);
+}
+
+/* Error message */
+#error-message {
+    color: var(--danger) !important;
+    font-size: 0.83rem;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--danger-dim);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--danger);
+}
+
+/* ─── SUBMIT BUTTON ──────────────────────────────────────────── */
+.submit-log-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--brand-blue);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter var(--transition), transform var(--transition);
+    letter-spacing: 0.01em;
+}
+
+.submit-log-btn:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+}
+
+.submit-log-btn:active { transform: translateY(0); }
+
+.submit-log-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ─── ATTENDANCE LOG LIST ─────────────────────────────────────── */
+.status-table {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    margin-top: 4px;
+}
+
+.status-table h4 {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Individual log entry row */
+.log-entry {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.84rem;
+}
+
+.log-entry:last-child { border-bottom: none; }
+
+.log-date { font-weight: 600; color: var(--text-primary); }
+.log-time { color: var(--text-secondary); font-family: monospace; }
+
+/* ─── SIDEBAR SUMMARY CARD ────────────────────────────────────── */
 .summary-card {
-    background-color: var(--header-blue);
+    background: linear-gradient(135deg, var(--brand-blue), #1a3d9e);
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 20px;
     text-align: center;
+    color: #fff;
 }
 
 .big-stat {
-    font-size: 4rem;
-    font-weight: bold;
-    color: var(--accent-yellow);
+    font-family: var(--font-display);
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--brand-gold);
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin-bottom: 4px;
 }
 
-/* Attendance Log Table */
-.status-table {
-    background: var(--card-bg);
-    margin-top: 20px;
-    padding: 15px;
-    border-radius: 12px;
-    border: 2px solid #000;
-    margin-bottom: 20px;
+.big-stat-label {
+    font-size: 0.78rem;
+    opacity: 0.75;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 600;
 }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+.summary-progress-bar {
+    background: rgba(255,255,255,0.15);
+    border-radius: 6px;
+    height: 8px;
+    margin: 14px 0 6px;
+    overflow: hidden;
 }
 
-th {
-    text-align: left;
-    color: var(--accent-yellow);
-    border-bottom: 1px solid #555;
-    padding: 10px;
+.summary-progress-fill {
+    height: 100%;
+    background: var(--brand-gold);
+    border-radius: 6px;
+    transition: width 0.6s ease;
 }
 
-td {
-    padding: 10px;
-    border-bottom: 1px solid #444;
+#progress-text {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin: 0;
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-    .tracker-grid { 
-        grid-template-columns: 1fr; 
+/* ─── RESPONSIVE ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .tracker-grid { grid-template-columns: 1fr; }
+    .tracker-sidebar { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
-    .time-container { flex-direction: column; }
-}
-
-.cal-widget { 
-    margin-top: 40px;
-    background-color: var(--brand-yellow); 
-    color: #000 !important; 
-    border-radius: 12px;
-    margin-bottom: 25px;
-}
-
-.cal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.cal-grid {
-display: grid;
-grid-template-columns: repeat(7, 1fr);
-gap: 2px;
-margin-top: 10px;
-text-align: center;
-}
-
-.cal-grid b { 
-    font-size: 0.8rem; padding-bottom: 5px; color: #333; 
-}
-
-.cal-grid div { padding: 8px 0; font-size: 0.9rem; border-radius: 50%; }
-
-.today-circle { background: var(--brand-blue); color: white; font-weight: bold; }
-
-.cal-widget { 
-    padding: 25px;
-    background-color: var(--brand-yellow); 
-    color: #222; }
-
-#mini-calendar div {
-    box-sizing: border-box;
+@media (max-width: 640px) {
+    .tracker-main { padding: 14px; }
+    .time-container { grid-template-columns: 1fr; }
+    .tracker-sidebar { grid-template-columns: 1fr; }
+    .digital-clock input[type="number"] { width: 44px; font-size: 1.2rem; }
 }

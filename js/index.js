@@ -1,8 +1,10 @@
 import { auth, db } from "../firebase-config.js";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { doc, getDoc, updateDoc} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { sanitizeText } from '/js/theme.js';
+import { initTheme, setupThemeToggle, sanitizeText } from '/js/theme.js';
 
+initTheme();
+setupThemeToggle('theme-toggle-btn');
 
 // Global state for role selection
 let selectedRole = 'student'; 
@@ -143,8 +145,7 @@ forgotPasswordLink.addEventListener('click', async (e) => {
     }
 });
 
-// 5. Theme Toggle
-document.getElementById('theme-toggle').onclick = () => {
+document.getElementById('theme-toggle-button').onclick = () => {
     const html = document.documentElement;
     const theme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     html.setAttribute('data-theme', theme);

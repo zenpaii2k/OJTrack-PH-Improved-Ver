@@ -1,71 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
-     <script>
-        (function() {
-            var t = localStorage.getItem('ojtrack-theme') || 'dark';
-            document.documentElement.className = t + '-theme';
-        })();
-    </script>
-
-     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <script>(function(){var t=localStorage.getItem('ojtrack-theme')||'dark';document.documentElement.className=t+'-theme';})();</script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OJTrack PH - OJT Clock In/Out</title>
-     <link rel="stylesheet" href="/css/shared.css">
+    <meta name="description" content="OJTrack PH — Log your OJT attendance">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — OJT Clock In / Out</title>
+    <link rel="stylesheet" href="/css/shared.css">
     <link rel="stylesheet" href="/css/ojtattendance.css">
 </head>
+
 <body>
-    <!-- ═══════════════════════════════════════════
-         SIDEBAR NAVIGATION
-    ═══════════════════════════════════════════ -->
+    <!-- SIDEBAR -->
     <nav class="side-navbar" aria-label="Student navigation">
         <div class="sidebar-logo">
-            <a href="dashboard.html" title="Go to Dashboard">
-                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
-            </a>
+            <a href="dashboard.html"><img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH"></a>
             <span>OJTrack PH</span>
         </div>
-
         <div class="nav-section-label">Student Portal</div>
-
         <nav class="nav-links">
-            <a href="dashboard.html"      class="nav-item">🏠 <span class="nav-label">Dashboard</span></a>
-            <a href="ojtattendance.html"  class="nav-item active"   aria-current="page">🕒 <span class="nav-label">Attendance</span></a>
-            <a href="checklist.html"      class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
-            <a href="generatepdf.html"    class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
-            <a href="feedback.html"       class="nav-item">💬 <span class="nav-label">Feedback</span></a>
+            <a href="dashboard.html"     class="nav-item">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="ojtattendance.html" class="nav-item active" aria-current="page">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checklist.html"     class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
+            <a href="generatepdf.html"   class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
+            <a href="feedback.html"      class="nav-item">💬 <span class="nav-label">Feedback</span></a>
         </nav>
-
         <div class="sidebar-bottom">
-            <a href="account.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <a href="account.html"        class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
             <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
             <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
         </div>
     </nav>
 
-    <!-- ═══════════════════════════════════════════
-         MAIN CONTENT
-    ═══════════════════════════════════════════ -->
     <div class="main-wrapper">
-
-        <!-- TOP HEADER -->
+        <!-- HEADER -->
         <header class="dashboard-header" role="banner">
             <div class="page-title-area">
-                <h3 id="greeting-text">Welcome back!</h3>
-                <p id="greeting-sub">Loading your OJT summary…</p>
+                <h3>🕒 OJT Clock In / Out</h3>
+                <p id="current-date-display">Loading date…</p>
             </div>
-
             <div class="header-tools">
-                <!-- NOTIFICATION BELL -->
-                <div class="notif-wrapper" role="region" aria-label="Notifications">
-                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
-                        🔔
-                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                        🔔 <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
                     </button>
-                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
+                    <div id="notif-modal" class="notif-dropdown">
                         <div class="notif-header">
                             <span>Notifications</span>
                             <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
@@ -75,115 +56,148 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- PROFILE PILL -->
                 <div class="profile-dropdown">
-                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
+                    <button id="profile-trigger" class="profile-pill">
                         <span id="user-display-name">Loading…</span>
                         <div class="avatar-circle" id="avatar-initial">?</div>
                     </button>
-
-                    <div id="profile-menu" class="profile-pop" role="menu">
+                    <div id="profile-menu" class="profile-pop">
                         <div class="profile-info">
                             <strong id="user-display-name-pop">Student Name</strong>
-                            <p id="user-full-email">email@example.com</p>
+                            <p id="user-full-email"></p>
                         </div>
                         <hr>
-                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
-                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
+                        <a href="account.html" class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
                         <hr>
-                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
                     </div>
                 </div>
             </div>
         </header>
 
+        <!-- MAIN BODY -->
         <main class="tracker-main">
-
             <div class="tracker-grid">
+
+                <!-- LEFT: LOG ENTRY -->
                 <section class="log-section">
                     <div class="log-card">
-                        <div class="card-header" id="current-date-display">
-                            <span class="icon">📅</span> Loading date...
+                        <div class="card-header" id="current-date-display-inner">
+                            📅 Today's Attendance Log
                         </div>
-                        
-                        <form class="attendance-form" id="attendance-form">
+
+                        <form class="attendance-form" id="attendance-form" novalidate>
+
+                            <!-- TIME IN / OUT INPUTS -->
                             <div class="time-container">
-                               <div class="time-box">
-                                    <label>TIME IN</label>
+                                <div class="time-box">
+                                    <label for="in-hour">TIME IN</label>
                                     <div class="digital-clock">
-                                        <input type="number" id="in-hour" placeholder="HH" min="1" max="12">
+                                        <input type="number" id="in-hour"   placeholder="HH" min="1"  max="12" aria-label="Hour in">
                                         <span class="colon">:</span>
-                                        <input type="number" id="in-minute" placeholder="MM" min="0" max="59">
-                                        <select id="in-ampm"><option>AM</option><option>PM</option></select>
+                                        <input type="number" id="in-minute" placeholder="MM" min="0"  max="59" aria-label="Minute in">
+                                        <select id="in-ampm" aria-label="AM or PM for time in">
+                                            <option>AM</option>
+                                            <option>PM</option>
+                                        </select>
                                     </div>
-                                    <button type="button" class="now-btn" id="btn-in-now" onclick = "setTimeToNow('in')">Now</button>
+                                    <button type="button" class="now-btn" id="btn-in-now">⚡ Set to Now</button>
                                 </div>
 
                                 <div class="time-box">
-                                    <label>TIME OUT</label>
+                                    <label for="out-hour">TIME OUT</label>
                                     <div class="digital-clock">
-                                        <input type="number" id="out-hour" placeholder="HH" min="1" max="12">
+                                        <input type="number" id="out-hour"   placeholder="HH" min="1"  max="12" aria-label="Hour out">
                                         <span class="colon">:</span>
-                                        <input type="number" id="out-minute" placeholder="MM" min="0" max="59">
-                                        <select id="out-ampm"><option>AM</option><option>PM</option></select>
+                                        <input type="number" id="out-minute" placeholder="MM" min="0"  max="59" aria-label="Minute out">
+                                        <select id="out-ampm" aria-label="AM or PM for time out">
+                                            <option>AM</option>
+                                            <option selected>PM</option>
+                                        </select>
                                     </div>
-                                    <button type="button" class="now-btn" id="btn-out-now" onclick = "setTimeToNow('out')">Now</button>
+                                    <button type="button" class="now-btn" id="btn-out-now">⚡ Set to Now</button>
                                 </div>
-
                             </div>
 
+                            <!-- COMPUTED HOURS PREVIEW -->
+                            <div id="hours-preview" style="
+                                background: var(--brand-gold-dim);
+                                border: 1px solid rgba(255,212,0,0.25);
+                                border-radius: var(--radius-md);
+                                padding: 10px 14px;
+                                font-size: 0.85rem;
+                                color: var(--brand-gold);
+                                font-weight: 600;
+                                margin-bottom: 16px;
+                                display: none;
+                                align-items: center;
+                                gap: 8px;">
+                                🕒 <span id="hours-preview-text">0.0 hours computed</span>
+                            </div>
+
+                            <!-- FILE ATTACHMENT -->
                             <div class="input-group">
-                                <p>Attach Files (Optional)</p>
+                                <p>📎 Attach Proof (Optional)</p>
                                 <label class="file-label" for="attendance-file">
-                                    <span class="icon">📤</span> <span id="file-name-text">Choose File</span>
-                                    <input type="file" id="attendance-file" style="display:none;" accept=".jpg,.png,.pdf,.docx">
+                                    <span>📤</span>
+                                    <span id="file-name-text">Click to choose file — JPG, PNG, PDF, DOCX</span>
+                                    <input type="file" id="attendance-file" style="display:none;" accept=".jpg,.jpeg,.png,.pdf,.docx">
                                 </label>
                             </div>
 
-                        <p id="error-message" style="color: #ff4d4d; font-size: 0.9rem; margin-top: 10px; display: none;"></p>
-
+                            <!-- NOTE -->
                             <div class="input-group">
-                                <p>Add Note (Optional)</p>
-                                <textarea id="attendance-note" placeholder="Enter your note here..."></textarea>
+                                <p>📝 Add Note (Optional)</p>
+                                <textarea id="attendance-note" placeholder="Describe your tasks or activities today…" maxlength="500"></textarea>
                             </div>
 
+                            <!-- ERROR -->
+                            <p id="error-message" style="display:none;" role="alert"></p>
+
+                            <!-- SUBMIT -->
                             <button type="submit" class="submit-log-btn" id="submit-log-btn">
-                                <span class="icon">🕒</span> Submit Log
+                                🕒 Submit Attendance Log
                             </button>
                         </form>
                     </div>
 
+                    <!-- LOG HISTORY -->
                     <div class="status-table" id="attendance-log-container">
-                        <h4><span class="icon">≡</span> Attendance Log</h4>
-                        <div id="log-list">No attendance records yet</div>
+                        <h4>📋 Attendance History</h4>
+                        <div id="log-list">
+                            <p class="empty-text">No attendance records yet.</p>
+                        </div>
                     </div>
                 </section>
 
+                <!-- RIGHT SIDEBAR -->
                 <aside class="tracker-sidebar">
-                     <div class="widget cal-widget">
-                    <div class="cal-header">
-                        <button id="prevMonth" class="cal-nav">&lt;</button>
-                        <h4 id="monthDisplay"></h4>
-                        <button id="nextMonth" class="cal-nav">&gt;</button>
-                    </div>
-                    <div id="mini-calendar" class="cal-grid"></div>
-                </div>
-                
-                    <div class="side-widget summary-card">
-                        <div class="big-stat" id="total-hours"></div>
-                        <div style="background: #333; border-radius: 10px; height: 12px; margin: 10px 0; overflow: hidden;">
-                            <div id="progress-bar" style="background: #ffd400; width: 0%; height: 100%; transition: width 0.5s;"></div>
+                    <!-- Calendar -->
+                    <div class="widget cal-widget">
+                        <div class="cal-header">
+                            <button id="prevMonth" class="cal-nav" aria-label="Previous month">‹</button>
+                            <h4 id="monthDisplay">—</h4>
+                            <button id="nextMonth" class="cal-nav" aria-label="Next month">›</button>
                         </div>
-                        <p id="progress-text" style="font-size: 0.8rem; color: #bbb;"></p>
+                        <div id="mini-calendar" class="cal-grid"></div>
+                    </div>
+
+                    <!-- Hours Summary -->
+                    <div class="summary-card">
+                        <div class="big-stat" id="total-hours">0.0<span style="font-size:1.2rem">h</span></div>
+                        <div class="big-stat-label">Completed Hours</div>
+                        <div class="summary-progress-bar">
+                            <div class="summary-progress-fill" id="progress-bar" style="width:0%"></div>
+                        </div>
+                        <p id="progress-text">of 0h required</p>
                     </div>
                 </aside>
+
             </div>
         </main>
     </div>
 
+    <script type="module" src="/js/ojtattendance.js"></script>
 </body>
-
-<script type="module" src="/js/ojtattendance.js"></script>
-
 </html>

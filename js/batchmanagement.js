@@ -19,6 +19,8 @@ import { setupNotificationSystem } from '../js/notifications.js';
 
 initTheme();
 
+let allBatchesCache = [];
+
 const nameCache = {}; 
 let state = {
     attendance: [],
@@ -31,105 +33,29 @@ let currentMonth = new Date();
 
 // --- 2. AUTH LISTENER ---
 protectPage('supervisor').then((user) => {
-    if (user) {
-       fetchUserProfile(user);
-        initCombinedRealTimeDashboard(user);
-        loadBatches(user.uid);
-        setupInteractions(user);
-        setupNotificationSystem(user.uid);
-    }
+    if (!user) return;
+
+    setupThemeToggle('theme-toggle-btn');
+    setupThemeToggle('sidebar-theme-btn');
+    setupProfileDropdown();
+    setupNotifDropdown();
+    setupNotificationSystem(user.uid);
+
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () =>
+            signOut(auth).then(() => location.replace("/index.html"))
+        );
+    });
+
+    fetchUserProfile(user);
+    loadBatches(user.uid);
 });
 
 function initCombinedRealTimeDashboard(user) {
 
     updateTotalStats(user).then((uids) => {
         state.myStudentUids = uids;
-        
-        // Listener for Attendance
-        const attendanceQ = query(collection(db, "attendance"), orderBy("timestamp", "asc"), limit(50));
-        onSnapshot(attendanceQ, (snapshot) => {
-            state.attendance = snapshot.docs.map(d => ({ id: d.id, ...d.data(), type: 'attendance' }));
-        });
-
-        // Listener for Requirements
-        const checklistQ = query(collection(db, "checklist"), orderBy("timestamp", "asc"), limit(50));
-        onSnapshot(checklistQ, (snapshot) => {
-            state.documents = snapshot.docs.map(d => ({ id: d.id, ...d.data(), type: 'document' }));
-        });
     });
-}
-
-function setupInteractions(user) {
-
-    const profileMenu = document.getElementById('profile-menu');
-    const notifBtn = document.getElementById('notif-btn');
-    const notifModal = document.getElementById('notif-modal');
-    if (notifBtn) {
-        notifBtn.onclick = (e) => {
-            e.stopPropagation();
-            notifModal.classList.toggle('show');
-        };
-    }
-
-    const clearBtn = document.getElementById('clear-all-notifs'); 
-
-    if (clearBtn) {
-    clearBtn.onclick = async (e) => {
-        e.preventDefault();
-
-        const updates = [];
-
-        [...state.attendance, ...state.documents].forEach(item => {
-            const col = item.type === "attendance" ? "attendance" : "checklist";
-
-            updates.push(
-                updateDoc(doc(db, col, item.id), {
-                    dismissedBy: arrayUnion(user.uid)
-                })
-            );
-        });
-
-        await Promise.all(updates);
-
-        const key = `sup_dismissed_${user.uid}`;
-        const allIds = [...state.attendance, ...state.documents].map(i => i.id);
-        localStorage.setItem(key, JSON.stringify(allIds));
-    };
-}
-
-    const navItems = document.querySelectorAll('.settings-list .nav-item');
-    const sections = document.querySelectorAll('.content-section');
-
-    navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const targetSectionId = item.getAttribute('data-section');
-
-            // 1. Update Active Sidebar Class
-            navItems.forEach(nav => nav.classList.remove('active'));
-            item.classList.add('active');
-
-            // 2. Hide ALL sections and show the target one
-            sections.forEach(section => {
-                section.style.display = 'none';
-                if (section.id === targetSectionId) {
-                    section.style.display = 'block';
-                }
-            });
-
-            // 3. Trigger Load specifically for batch
-            if (targetSectionId === 'batch-content') {
-                loadBatchList();
-            }
-        });
-    });
-
-    // Dropdowns
-    document.getElementById('profile-trigger').onclick = (e) => {
-        e.stopPropagation();
-        profileMenu.classList.toggle('show');
-    };
-
-    document.getElementById('logout-link').onclick = () => signOut(auth).then(() => location.replace("/index.html"));
 }
 
 async function updateTotalStats(user) {
@@ -155,15 +81,58 @@ async function getStudentName(uid) {
     return name;
 }
 
-// --- 5. BATCH MANAGEMENT CORE --- (Existing logic preserved below)
 async function fetchUserProfile(user) {
     const userSnap = await getDoc(doc(db, "users", user.uid));
     if (userSnap.exists()) {
         const userData = userSnap.data();
-        document.getElementById('user-display-name').innerText = userData.name || "User";
-        document.getElementById('user-display-name-pop').innerText = userData.name;
+
+        const fullName =
+            userData.name ||
+            `${userData.firstName || ''} ${userData.surname || ''}`.trim() ||
+            "User";
+
+        document.getElementById('user-display-name').innerText = fullName;
+        document.getElementById('user-display-name-pop').innerText = fullName;
         document.getElementById('user-full-email').innerText = user.email;
+
+        const avatarEl = document.getElementById('avatar-initial');
+        if (avatarEl) {
+            avatarEl.textContent = fullName.charAt(0).toUpperCase();
+        }
+
+        populateHeaderUser(fullName, user.email);
     }
+}
+
+async function updateBatchStats(uid) {
+    const totalEl = document.getElementById("bstat-total");
+    const studentEl = document.getElementById("bstat-students");
+    const activeEl = document.getElementById("bstat-active");
+
+    const q = query(collection(db, "batches"), where("supervisorId", "==", uid));
+    const snap = await getDocs(q);
+
+    let totalBatches = 0;
+    let totalStudentsSet = new Set();
+    let activeBatches = 0;
+
+    snap.forEach(docSnap => {
+        totalBatches++;
+
+        const data = docSnap.data();
+        const students = data.studentUids || [];
+
+        // count students uniquely
+        students.forEach(uid => totalStudentsSet.add(uid));
+
+        // active batch = has students
+        if (students.length > 0) activeBatches++;
+    });
+
+    // update UI
+    if (totalEl) totalEl.textContent = totalBatches;
+    if (studentEl) studentEl.textContent = totalStudentsSet.size;
+    if (activeEl) activeEl.textContent = activeBatches;
 }
 
 // --- INITIALIZATION ---
@@ -180,14 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (createBatchForm) {
         createBatchForm.onsubmit = createNewBatch;
     }
-
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            loadBatches(user.uid);
-        } else {
-            window.location.replace("/index.html");
-        }
-    });
 });
 
 // --- CORE FUNCTIONS ---
@@ -229,7 +190,10 @@ async function loadBatches(uid) {
     const q = query(collection(db, "batches"), where("supervisorId", "==", uid));
     const snapshot = await getDocs(q);
 
-    container.innerHTML = ""; 
+    await updateBatchStats(uid);
+
+    allBatchesCache = []; // reset cache
+    container.innerHTML = "";
 
     if (snapshot.empty) {
         container.innerHTML = '<div class="empty-state">No batches created yet.</div>';
@@ -238,24 +202,73 @@ async function loadBatches(uid) {
 
     snapshot.forEach((batchDoc) => {
         const data = batchDoc.data();
-        const batchId = batchDoc.id;
-        const card = document.createElement('div');
-        card.className = 'batch-card';
-        
-        // --- REVISED CARD HTML WITH DELETE BUTTON ---
-        card.innerHTML= `
-            <div class="batch-info">
-                <strong>${data.name}</strong>
-                <p>${data.year}</p>
-                <small>${data.studentUids ? data.studentUids.length : 0} Students Assigned</small>
-            </div>
-            <div class="batch-card-actions">
-                <button class="btn-manage" onclick="openStudentModal('${batchId}', '${data.name}')">Manage Students</button>
-                <button class="btn-delete-batch" onclick="deleteBatch('${batchId}', '${data.name}')" title="Delete Batch">🗑️</button>
-            </div>
-        `;
-        container.appendChild(card);
+        allBatchesCache.push({ id: batchDoc.id, ...data });
+
+        renderBatchCard(batchDoc.id, data);
     });
+}
+
+function renderBatchCard(batchId, data) {
+    const container = document.getElementById('batchContainer');
+
+    const card = document.createElement('div');
+    card.className = 'batch-card';
+
+    card.innerHTML = `
+        <div class="batch-info">
+            <strong>${data.name}</strong>
+            <p>${data.year}</p>
+            <small>${data.studentUids ? data.studentUids.length : 0} Students Assigned</small>
+        </div>
+        <div class="batch-card-actions">
+            <button class="btn btn-primary"
+                onclick="openStudentModal('${batchId}', '${data.name}')">
+                👥 Manage
+            </button>
+
+            <button class="btn btn-danger"
+                onclick="deleteBatch('${batchId}', '${data.name}')">
+                🗑 Delete
+            </button>
+        </div>
+    `;
+
+    container.appendChild(card);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const searchInput = document.getElementById("batch-search");
+
+    if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+            const value = e.target.value.toLowerCase().trim();
+            filterBatches(value);
+        });
+    }
+});
+
+function filterBatches(keyword) {
+    const container = document.getElementById('batchContainer');
+    container.innerHTML = "";
+
+    if (!keyword) {
+        allBatchesCache.forEach(b => renderBatchCard(b.id, b));
+        return;
+    }
+
+    const filtered = allBatchesCache.filter(batch => {
+        return (
+            batch.name?.toLowerCase().includes(keyword) ||
+            batch.year?.toLowerCase().includes(keyword)
+        );
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<div class="empty-state">No matching batches found.</div>`;
+        return;
+    }
+
+    filtered.forEach(b => renderBatchCard(b.id, b));
 }
 
 window.deleteBatch = async function(batchId, batchName) {
@@ -350,29 +363,63 @@ window.closeStudentModal = function() {
 
 async function viewStudentList(batchId) {
     const listBody = document.getElementById('batchStudentList');
-    listBody.innerHTML = "<tr><td colspan='3'>Loading...</td></tr>";
+    listBody.innerHTML = "<tr><td colspan='6'>Loading...</td></tr>";
 
     const batchSnap = await getDoc(doc(db, "batches", batchId));
-    const uids = batchSnap.data().studentUids || [];
+    const batchData = batchSnap.data();
+    const uids = batchData.studentUids || [];
 
     if (uids.length === 0) {
-        listBody.innerHTML = "<tr><td colspan='3'>No students assigned.</td></tr>";
+        listBody.innerHTML = "<tr><td colspan='6'>No students assigned.</td></tr>";
         return;
     }
 
     listBody.innerHTML = "";
+
     for (const uid of uids) {
         const userSnap = await getDoc(doc(db, "users", uid));
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${userData.firstName} ${userData.surname}</td>
-                <td>${userData.course}-${userData.section}</td>
-                <td><button onclick="removeStudent('${uid}')" class="btn-delete-small">Remove</button></td>
-            `;
-            listBody.appendChild(row);
-        }
+
+        if (!userSnap.exists()) continue;
+
+        const userData = userSnap.data();
+
+        // 🔹 fallback values (adjust later if you have real tracking)
+        const hours = userData.totalHours || 0;
+        const requiredHours = userData.requiredHours || 300;
+
+        const progress = Math.min(
+            Math.round((hours / requiredHours) * 100),
+            100
+        );
+
+        const row = document.createElement('tr');
+
+        row.innerHTML = `
+            <td>
+                <strong>${userData.firstName || ''} ${userData.surname || ''}</strong>
+            </td>
+
+            <td>${userData.course || '-'}</td>
+
+            <td>${userData.section || '-'}</td>
+
+            <td>${hours} hrs</td>
+
+            <td>
+                <div style="width:100px; background:#eee; border-radius:6px; overflow:hidden;">
+                    <div style="width:${progress}%; background:#4caf50; height:8px;"></div>
+                </div>
+                <small>${progress}%</small>
+            </td>
+
+            <td>
+                <button onclick="removeStudent('${uid}')" class="btn-delete-small">
+                    Remove
+                </button>
+            </td>
+        `;
+
+        listBody.appendChild(row);
     }
 }
 
@@ -386,3 +433,53 @@ window.removeStudent = async function(uid) {
         loadBatches(auth.currentUser.uid);
     }
 };
+
+function closeModalById(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+}
+
+// SAFE modal bindings
+document.addEventListener("DOMContentLoaded", () => {
+
+    // CREATE MODAL
+    document.getElementById("close-create-modal")?.addEventListener("click", () => {
+        closeModalById("createBatchModal");
+    });
+
+    document.getElementById("cancel-create-btn")?.addEventListener("click", () => {
+        closeModalById("createBatchModal");
+    });
+
+    // STUDENT MODAL
+    document.getElementById("close-student-modal")?.addEventListener("click", () => {
+        closeModalById("studentListModal");
+    });
+
+    // CLICK OUTSIDE MODAL CLOSE
+    ["createBatchModal", "studentListModal"].forEach(id => {
+        const modal = document.getElementById(id);
+        modal?.addEventListener("click", (e) => {
+            if (e.target === modal) modal.style.display = "none";
+        });
+    });
+
+    // INVITE BUTTON FIX
+    document.getElementById("generateInviteBtn")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        window.generateInviteLink?.();
+    });
+
+    // SIDEBAR BUTTON FIXES
+    document.getElementById("sidebar-theme-btn")?.addEventListener("click", () => {
+        document.documentElement.classList.toggle("dark-theme");
+        localStorage.setItem(
+            "ojtrack-theme",
+            document.documentElement.classList.contains("dark-theme") ? "dark" : "light"
+        );
+    });
+
+    document.getElementById("sidebar-logout-btn")?.addEventListener("click", () => {
+        signOut(auth).then(() => location.replace("/index.html"));
+    });
+});

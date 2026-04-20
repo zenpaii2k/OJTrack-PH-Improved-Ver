@@ -1,72 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
-     <script>
-        (function() {
-            var t = localStorage.getItem('ojtrack-theme') || 'dark';
-            document.documentElement.className = t + '-theme';
-        })();
-    </script>
-
-     <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <script>(function(){var t=localStorage.getItem('ojtrack-theme')||'dark';document.documentElement.className=t+'-theme';})();</script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OJTrack PH - Adviser Feedback</title>
-     <link rel="stylesheet" href="/css/shared.css">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — Adviser Feedback</title>
+    <link rel="stylesheet" href="/css/shared.css">
     <link rel="stylesheet" href="/css/feedback.css">
 </head>
 
 <body>
-    <!-- ═══════════════════════════════════════════
-         SIDEBAR NAVIGATION
-    ═══════════════════════════════════════════ -->
+    <!-- SIDEBAR -->
     <nav class="side-navbar" aria-label="Student navigation">
         <div class="sidebar-logo">
-            <a href="dashboard.html" title="Go to Dashboard">
-                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
-            </a>
+            <a href="dashboard.html"><img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH"></a>
             <span>OJTrack PH</span>
         </div>
-
         <div class="nav-section-label">Student Portal</div>
-
         <nav class="nav-links">
-            <a href="dashboard.html"      class="nav-item">🏠 <span class="nav-label">Dashboard</span></a>
-            <a href="ojtattendance.html"  class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
-            <a href="checklist.html"      class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
-            <a href="generatepdf.html"    class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
-            <a href="feedback.html"       class="nav-item active"   aria-current="page">💬 <span class="nav-label">Feedback</span></a>
+            <a href="dashboard.html"     class="nav-item">🏠 <span class="nav-label">Dashboard</span></a>
+            <a href="ojtattendance.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
+            <a href="checklist.html"     class="nav-item">✔️ <span class="nav-label">Checklist</span></a>
+            <a href="generatepdf.html"   class="nav-item">📄 <span class="nav-label">Submit Report</span></a>
+            <a href="feedback.html"      class="nav-item active" aria-current="page">💬 <span class="nav-label">Feedback</span></a>
         </nav>
-
         <div class="sidebar-bottom">
-            <a href="account.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
-            <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <a href="account.html"          class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
+            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
             <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
         </div>
     </nav>
 
-    <!-- ═══════════════════════════════════════════
-         MAIN CONTENT
-    ═══════════════════════════════════════════ -->
     <div class="main-wrapper">
-
-        <!-- TOP HEADER -->
+        <!-- HEADER -->
         <header class="dashboard-header" role="banner">
             <div class="page-title-area">
-                <h3 id="greeting-text">Welcome back!</h3>
-                <p id="greeting-sub">Loading your OJT summary…</p>
+                <h3>💬 Adviser Feedback</h3>
+                <p>Messages and evaluations from your OJT coordinator</p>
             </div>
-
             <div class="header-tools">
-                <!-- NOTIFICATION BELL -->
-                <div class="notif-wrapper" role="region" aria-label="Notifications">
-                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
-                        🔔
-                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
+                <div class="notif-wrapper">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
+                        🔔 <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
                     </button>
-                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
+                    <div id="notif-modal" class="notif-dropdown">
                         <div class="notif-header">
                             <span>Notifications</span>
                             <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
@@ -76,39 +55,71 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- PROFILE PILL -->
                 <div class="profile-dropdown">
-                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
+                    <button id="profile-trigger" class="profile-pill">
                         <span id="user-display-name">Loading…</span>
                         <div class="avatar-circle" id="avatar-initial">?</div>
                     </button>
-
-                    <div id="profile-menu" class="profile-pop" role="menu">
+                    <div id="profile-menu" class="profile-pop">
                         <div class="profile-info">
                             <strong id="user-display-name-pop">Student Name</strong>
-                            <p id="user-full-email">email@example.com</p>
+                            <p id="user-full-email"></p>
                         </div>
                         <hr>
-                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
-                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
+                        <a href="account.html"      class="menu-link">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
                         <hr>
-                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
+                        <button id="logout-link" class="logout-action">🚪 Logout</button>
                     </div>
                 </div>
             </div>
         </header>
 
+        <!-- MAIN BODY -->
         <main class="feedback-layout">
 
-            <section class="feedback-container">
-                <p style="text-align:center; color:gray; padding:20px;">Loading feedback...</p>
-            </section>
+            <div class="feedback-page-grid">
+
+                <!-- FEEDBACK SUMMARY CARD -->
+                <div class="feedback-summary-card" id="feedback-summary">
+                    <div class="fb-summary-stat">
+                        <span class="fb-stat-num" id="fb-total-count">0</span>
+                        <span class="fb-stat-label">Total Messages</span>
+                    </div>
+                    <div class="fb-summary-stat">
+                        <span class="fb-stat-num" id="fb-unread-count" style="color:var(--brand-gold)">0</span>
+                        <span class="fb-stat-label">Unread</span>
+                    </div>
+                    <div class="fb-summary-stat">
+                        <span class="fb-stat-num" id="fb-adviser-name" style="font-size:1rem;font-weight:600;">—</span>
+                        <span class="fb-stat-label">Your Adviser</span>
+                    </div>
+                </div>
+
+                <!-- FEEDBACK THREAD -->
+                <div class="feedback-thread-card">
+                    <div class="thread-header">
+                        <h3>💬 Feedback Thread</h3>
+                        <div class="thread-filter">
+                            <button class="filter-btn active" data-filter="all">All</button>
+                            <button class="filter-btn" data-filter="unread">Unread</button>
+                        </div>
+                    </div>
+
+                    <!-- Feedback list injected by JS -->
+                    <div id="feedback-list" class="feedback-list-area">
+                        <div class="fb-loading">
+                            <div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:12px;"></div>
+                            <div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:12px;"></div>
+                            <div class="skeleton" style="height:80px;border-radius:12px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </main>
     </div>
 
+    <script type="module" src="/js/feedback.js"></script>
 </body>
-
-<script type="module" src="/js/feedback.js"></script>
-
 </html>

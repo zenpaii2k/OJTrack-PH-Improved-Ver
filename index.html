@@ -1,253 +1,425 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
+    <!--
+      FIXES applied vs original:
+      1. Changed data-theme="dark" (no longer used) to IIFE class approach
+      2. Fixed backtick in class attribute: `class="how-it-works"` → class="how-it-works"
+      3. Fixed broken img border attribute → style attribute
+      4. Fixed .legal-card CSS trapped inside @media block (in index.css)
+    -->
+    <script>(function(){var t=localStorage.getItem('ojtrack-theme')||'dark';document.documentElement.className=t+'-theme';})();</script>
 
-    <link rel = "icon"  type="image/x-icon" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
-    <title>OJTrack PH - Your OJT Tracking Tool</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OJTrack PH — Streamlined OJT Tracking System for Philippine Schools">
+    <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
+    <title>OJTrack PH — Your OJT Tracking Tool</title>
     <link rel="stylesheet" href="css/index.css">
 </head>
+
 <body>
 
-    <nav class="navbar">
-        <div class="nav-logo">
-            <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack Logo">
-            <span>OJTrack PH</span>
-        </div>
-        <div class="nav-links">
-            <a href="javascript:void(0)" onclick="showView('home')">Home</a>
-            <a href="javascript:void(0)" onclick="showView('about')">About</a>
-            <a href="javascript:void(0)" onclick="showView('contact')">Contact</a>
-            
-            <div class="nav-actions">
-                <button id="login-trigger" class="btn-portal">Portal Login</button>
-                <button id="theme-toggle" class="btn-icon">🌓</button>
-            </div>
-        </div>
-    </nav>
+<!-- ══════════════════════════════════════════════════════
+     NAVIGATION BAR
+══════════════════════════════════════════════════════ -->
+<nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-logo">
+        <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">
+        <span>OJTrack PH</span>
+    </div>
+    <div class="nav-links">
+        <a href="javascript:void(0)" onclick="showView('home')"    class="nav-link">Home</a>
+        <a href="javascript:void(0)" onclick="showView('features')" class="nav-link">Features</a>
+        <a href="javascript:void(0)" onclick="showView('about')"   class="nav-link">About</a>
+        <a href="javascript:void(0)" onclick="showView('contact')" class="nav-link">Contact</a>
 
-    <main class="main-stage">
-        
-        <section id="home-view" class="view active">
-            <div class="hero-content">
-                <h1>Streamlined Internship Management</h1>
-                <p>Monitor hours, generate reports, and bridge the gap between education and industry.</p>
-            </div>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class = "feature-emoji">🕒</div>
-                    <h3>Real-time Logs</h3>
-                    <p>Log OJT hours instantly from any device.</p>
-                </div>
-
-                <div class="feature-card">
-                    <div class = "feature-emoji">📊</div>
-                    <h3>Auto Report Generator</h3>
-                    <p>One-click PDF compliance reports.</p>
-                </div>
-
-                <div class="feature-card">
-                    <div class = "feature-emoji">📱</div>
-                    <h3>Mobile Optimized</h3>
-                    <p>Access anywhere, any time.</p>
-                </div>
-
-                <div class="feature-card">
-                    <div class = "feature-emoji">💻</div>
-                    <h3>Adviser-Tailored Portal</h3>
-                    <p>Allow your OJT coordinator to verify and approve your logged hours.</p>
-                </div>
-
-            </div>
-
-            <section `class="how-it-works"`>
-            <div class="hero-content">
-                    <span class="badge">
-                        <h1>STEPS</h1></span>
-                    <h2>3 basic steps to start tracking your OJT hours</h2>
-                
-                <div class="steps-container">
-                    <div class="step">
-                        <div class="step-img">
-                            <img src="images/OJTrack PH - Registration Page - Google Chrome 2026-04-06 16-53-50 (online-video-cutter.com).gif" width="355" height="183" style = "border: 1px #444;">
-                        </div>
-                        <h4>Create an Account</h4>
-                        <p>Sign up with your school email and set up your profile with ease.</p>
-                    </div>
-                    <div class="step">
-                        <div class="step-img"><img src="images/OJTrack PH - OJT Clock In_Out - Google Chrome 2026-04-06 17-05-04 (online-video-cutter.com).gif" width="355" height="183" style = "border:1px #444;">
-                        </div>
-                        <h4>Log Your Hours</h4>
-                        <p>Record your OJT logs, time-in, and time-out daily with our user-friendly interface.</p>
-                    </div>
-                    <div class="step">
-                        <div class="step-img"><img src="images/OJTrack PH - Generate OJT Report - Google Chrome 2026-04-06 17-07-32 (online-video-cutter.com).gif" width="355" height="183" style = "border:1px #444;">
-                        </div>
-                        <h4>Track Progress</h4>
-                        <p>Monitor your progress and generate reports for your OJT requirements.</p>
-                    </div>
-                </div>
-                </div>
-                </section>
-
-        </section>
-          
-        <section id="about-view" class="view">
-            <div class="content-card">
-                <h2>Our History</h2>
-                <p>Founded in 2026 by the <strong>NOUS R&D Team</strong>, OJTrack PH was born out of a need for more transparent and faster OJT monitoring. What started as a small project to help students has evolved into a comprehensive platform for multiple disciplines.
-                Our mission is to provide students with a reliable digital footprint of their internship growth while giving coordinators the tools they need to verify progress with zero paperwork.</p>
-            </div>
-        </section>
-
-        <section id="contact-view" class="view">
-            <div class="content-card">
-                <h2>Get in Touch</h2>
-                <p>Have questions or need technical support?</p>
-                <div class="contact-details">
-                    <p>📧 <strong>Email:</strong> ojtrackph.official@gmail.com</p>
-                    <p>📍 <strong>Office:</strong> NOUS R&D Hub, Las Piñas City, Philippines</p>
-                </div>
-
-                    <div class="content-card">
-                        <h2>Feedback</h2>
-                        <p>Any feedback is entertained. Please fill in and we'll respond immediately as we can.</p>
-                        
-                        <form id="feedbackForm" class="contact-form">
-                            <div class="input-row">
-                                <div class="input-group">
-                                    <label for="name">Name:</label>
-                                    <input type="text" id="name" name="name" placeholder="Juan dela Cruz" required>
-                                </div>
-                                <div class="input-group">
-                                    <label for="email">Email:</label>
-                                    <input type="email" id="email" name="email" placeholder="juan@example.com" required>
-                                </div>
-                            </div>
-
-                            <label for="subject">Subject:</label>
-                            <select id="subject" name="subject">
-                                <option value="General Inquiry">General Inquiry</option>
-                                <option value="Technical Bug">Technical Bug</option>
-                                <option value="Account Access">Account Access</option>
-                                <option value="Partnership">Partnership/OJT Request</option>
-                            </select>
-
-                            <label for="message">Message:</label>
-                            <textarea id="message" name="message" placeholder="Type your message here..." required></textarea>
-
-                            <button type="submit" id="submitBtn">Send Feedback</button>
-                        </form>
-                        <p id="responseMessage" class="feedback-msg"></p>
-                    </div>
-                </section>
-
-            </div>
-        </section>
-    </main>
-
-    <div id="login-modal" class="modal-overlay">
-        <div class="login-card">
-            <button class="close-modal" onclick="toggleModal(false)">&times;</button>
-            
-            <div class="login-header">
-                <img src="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png" class="modal-logo" alt="OJTrack Logo">
-                <h2>Portal Login</h2>
-                <p id="role-indicator">Accessing as <strong>Student</strong></p>
-            </div>
-
-            <div class="role-selector">
-                <button id="student-role" class="role-toggle active" onclick="setRole('student')">Student</button>
-                <button id="supervisor-role" class="role-toggle" onclick="setRole('supervisor')">Adviser</button>
-            </div>
-
-            <form id="auth-form" class="auth-form">
-                <div class="input-field">
-                    <label for="login-email">School/Work Email</label>
-                    <input type="email" id="login-email" placeholder="name@example.com" required>
-                </div>
-                <div class="input-field password-wrapper">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" placeholder="••••••••" required>
-                    <span id="toggle-password" class="toggle-emoji">👁️</span>
-                </div>
-                
-                <button type="submit" class="btn-login-main">SIGN IN TO DASHBOARD</button>
-            </form>
-
-            <div class="modal-footer">
-                <p class="register-text">New to OJTrack PH? <a href = "all-pov/register.html" id ="register-text-link"=>Create an Account</a></p>
-            </div>
-
-             <div class="form-footer">
-                <a href="#" id="forgot-password-link">Forgot Password?</a>
-            </div>
-                  
+        <div class="nav-actions">
+            <button id="login-trigger" class="btn-portal">Portal Login</button>
+            <button id="theme-toggle-button"  class="btn-icon" aria-label="Toggle dark/light mode" title="Toggle Theme">🌓</button>
         </div>
     </div>
 
-    <footer class="footer-main">
-        <div class="footer-top">
-            <div class="footer-brand">
-                <div class="nav-logo">
-                    <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack Logo">
-                    <span>OJTrack PH</span>
+    <!-- Mobile hamburger -->
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu" aria-expanded="false">☰</button>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════
+     MAIN VIEWS
+══════════════════════════════════════════════════════ -->
+<main class="main-stage" id="main-stage">
+
+    <!-- ─── HOME VIEW ──────────────────────────────────────── -->
+    <section id="home-view" class="view active">
+
+        <!-- HERO -->
+        <div class="hero-section">
+            <div class="hero-text">
+                <div class="hero-badge">Built for Philippine Schools</div>
+                <h1 class="hero-headline">Streamlined<br>Internship<br>Management</h1>
+                <p class="hero-sub">Monitor hours, generate reports, and bridge the gap between education and industry — all in one platform.</p>
+                <div class="hero-cta">
+                    <button class="btn-cta-primary" onclick="toggleModal(true)">Get Started Free</button>
+                    <a href="javascript:void(0)" onclick="showView('features')" class="btn-cta-ghost">See Features →</a>
                 </div>
-                <p>Effective Training, Easy Tracking.</p>
-                <p>ojtrackph.official@gmail.com</p>
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <span class="hero-stat-num">9+</span>
+                        <span class="hero-stat-label">Courses Supported</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-num">100%</span>
+                        <span class="hero-stat-label">Free to Use</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-num">PDF</span>
+                        <span class="hero-stat-label">Auto Reports</span>
+                    </div>
+                </div>
             </div>
-            <div class="footer-links">
-                <div class="link-group">
-                    <h5>Product</h5>
-                    <a href="#">Features</a>
-                    <a href="#">For OJT Coordinators</a>
-                    <a href="#">For Students</a>
-                </div>
-                <div class="link-group">
-                    <h5>Company</h5>
-                    <a href="#">About</a>
-                    <a href="#">About the Dev Team</a>
-                    <a href="#">Contact</a>
-                </div>
-                
-                <div class="link-group">
-                    <h5>Legal</h5>
-                    <a href="#" id="privacy-link">Privacy Policy</a>
-                    <a href="#" id="terms-link">Terms and Conditions</a>
-                </div>
-
-                <div id="legal-modal" class="modal-overlay">
-                    <div class="login-card legal-card" style="max-width: 600px;"> 
-                        <button class="close-modal" id="close-legal-btn">&times;</button>
-                        
-                        <div class="login-header">
-                            <img src="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png" class="modal-logo" alt="OJTrack Logo">
-                            <h2 id="legal-title">Legal Document</h2>
-                            <p id="legal-subtitle">OJTrack PH & Nous R&D</p>
+            <div class="hero-visual">
+                <div class="hero-mockup">
+                    <div class="mockup-bar">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                        <span class="mockup-url">ojtrackph.web.app/student/dashboard</span>
+                    </div>
+                    <div class="mockup-body">
+                        <div class="mock-sidebar">
+                            <div class="mock-logo-row">📋 OJTrack PH</div>
+                            <div class="mock-nav-item active-mock">🏠 Dashboard</div>
+                            <div class="mock-nav-item">🕒 Attendance</div>
+                            <div class="mock-nav-item">✔️ Checklist</div>
+                            <div class="mock-nav-item">📄 Report</div>
                         </div>
-
-                        <div id="legal-content" class="legal-scroll-view" style="max-height: 400px; overflow-y: auto; text-align: left; padding: 20px; color: #ccc; font-size: 0.9rem; line-height: 1.6;">
+                        <div class="mock-content">
+                            <div class="mock-stat-row">
+                                <div class="mock-stat gold">
+                                    <div class="mock-stat-val">240h</div>
+                                    <div class="mock-stat-lbl">Completed</div>
+                                    <div class="mock-bar"><div style="width:40%"></div></div>
+                                </div>
+                                <div class="mock-stat red">
+                                    <div class="mock-stat-val">360h</div>
+                                    <div class="mock-stat-lbl">Remaining</div>
+                                </div>
+                                <div class="mock-stat green">
+                                    <div class="mock-stat-val">40%</div>
+                                    <div class="mock-stat-lbl">Progress</div>
+                                </div>
                             </div>
-
-                        <div class="modal-footer" style="border-top: 1px solid #333; padding-top: 15px;">
-                            <button class="btn-login-main" id="legal-understand-btn">I UNDERSTAND</button>
+                            <div class="mock-table-row">📋 Recent Attendance Logs</div>
+                            <div class="mock-log-row"><span>Apr 17</span><span>8:00 AM</span><span>5:00 PM</span><span class="mock-badge green-badge">✓</span></div>
+                            <div class="mock-log-row"><span>Apr 16</span><span>8:00 AM</span><span>5:00 PM</span><span class="mock-badge gold-badge">⏳</span></div>
+                            <div class="mock-log-row"><span>Apr 15</span><span>8:00 AM</span><span>5:00 PM</span><span class="mock-badge green-badge">✓</span></div>
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
-        <div class="footer-bottom">
-            <p>&copy; 2026 OJTrack PH. All Rights Reserved.</p>
-            <div class="social-icons">
-                </div>
+
+        <!-- FEATURE CARDS -->
+        <div class="features-row">
+            <div class="feature-card">
+                <div class="feature-emoji">🕒</div>
+                <h3>Real-time Logs</h3>
+                <p>Log OJT hours instantly from any device, anywhere.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-emoji">📊</div>
+                <h3>Auto PDF Reports</h3>
+                <p>One-click compliance reports, formatted and ready.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-emoji">📱</div>
+                <h3>Mobile-Optimized</h3>
+                <p>Works flawlessly on phones, tablets, and laptops.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-emoji">👨‍🏫</div>
+                <h3>Adviser Portal</h3>
+                <p>Coordinators verify and approve hours with zero paperwork.</p>
+            </div>
         </div>
-    </footer>
 
+        <!-- HOW IT WORKS -->
+        <section class="how-it-works">
+            <div class="section-label">STEPS</div>
+            <h2 class="section-title">3 simple steps to track your OJT</h2>
+
+            <div class="steps-container">
+                <div class="step">
+                    <div class="step-num-circle">1</div>
+                    <div class="step-img">
+                        <img
+                            src="images/ojtrack ph - registration page - google chrome 2026-04-06 16-53-50 (online-video-cutter.com).gif"
+                            alt="Registration page demo"
+                            style="width:100%;height:auto;border-radius:8px;border:1px solid var(--border);">
+                    </div>
+                    <h4>Create an Account</h4>
+                    <p>Sign up with your school email. Students and advisers each get their own dedicated portal.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num-circle">2</div>
+                    <div class="step-img">
+                        <img
+                            src="images/ojtrack ph - ojt clock in_out - google chrome 2026-04-06 17-05-04 (online-video-cutter.com).gif"
+                            alt="Clock in/out demo"
+                            style="width:100%;height:auto;border-radius:8px;border:1px solid var(--border);">
+                    </div>
+                    <h4>Log Your Hours</h4>
+                    <p>Record daily time-in and time-out. Attach proof files and notes for your adviser.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num-circle">3</div>
+                    <div class="step-img">
+                        <img
+                            src="images/ojtrack ph - generate ojt report - google chrome 2026-04-06 17-07-32 (online-video-cutter.com).gif"
+                            alt="Generate report demo"
+                            style="width:100%;height:auto;border-radius:8px;border:1px solid var(--border);">
+                    </div>
+                    <h4>Track &amp; Report</h4>
+                    <p>Monitor progress in real-time and generate PDF reports with one click.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ANNOUNCEMENT STRIP -->
+        <div class="announcement-strip">
+            <span class="announce-icon">📢</span>
+            <div class="announce-text">
+                <strong>School Expo 2026</strong>
+                <span>OJTrack PH is live and ready for demo. Try the Portal Login above!</span>
+            </div>
+            <span class="announce-badge">NEW</span>
+        </div>
+
+    </section>
+
+    <!-- ─── FEATURES VIEW ───────────────────────────────────── -->
+    <section id="features-view" class="view">
+        <div class="content-card">
+            <h2>Platform Features</h2>
+
+            <div class="features-detail-grid">
+                <div class="feat-detail-card">
+                    <div class="feat-icon">🎓</div>
+                    <h3>Student Dashboard</h3>
+                    <p>Track completed hours, remaining time, and recent attendance logs in one clean view.</p>
+                </div>
+                <div class="feat-detail-card">
+                    <div class="feat-icon">👨‍🏫</div>
+                    <h3>Adviser Portal</h3>
+                    <p>Approve logs, review documents, manage student batches, and generate oversight reports.</p>
+                </div>
+                <div class="feat-detail-card">
+                    <div class="feat-icon">📁</div>
+                    <h3>Batch Management</h3>
+                    <p>Group students into cohorts by course and section. Track overall batch progress.</p>
+                </div>
+                <div class="feat-detail-card">
+                    <div class="feat-icon">✔️</div>
+                    <h3>Document Checklist</h3>
+                    <p>Upload, track, and get approval for all required OJT documents in one place.</p>
+                </div>
+                <div class="feat-detail-card">
+                    <div class="feat-icon">📄</div>
+                    <h3>PDF Report Generator</h3>
+                    <p>Auto-generate formatted compliance reports that meet school submission standards.</p>
+                </div>
+                <div class="feat-detail-card">
+                    <div class="feat-icon">🔔</div>
+                    <h3>Real-time Notifications</h3>
+                    <p>Students and advisers get instant alerts when logs are approved, rejected, or new feedback arrives.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── ABOUT VIEW ──────────────────────────────────────── -->
+    <section id="about-view" class="view">
+        <div class="content-card">
+            <h2>Our Story</h2>
+            <p>Founded in <strong>2026 by the NOUS R&amp;D Team</strong>, OJTrack PH was born out of a need for more transparent and efficient OJT monitoring in Philippine schools. What started as a small project has evolved into a comprehensive platform serving multiple disciplines.</p>
+            <p style="margin-top:14px;">Our mission is to provide students with a reliable digital footprint of their internship growth while giving coordinators the tools they need to verify progress with <strong>zero paperwork</strong>.</p>
+
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar">👨‍💻</div>
+                    <h4>NOUS R&amp;D Team</h4>
+                    <p>Developers &amp; Designers</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">🏫</div>
+                    <h4>Las Piñas City</h4>
+                    <p>Metro Manila, Philippines</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">📅</div>
+                    <h4>Since 2026</h4>
+                    <p>Continuously improving</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── CONTACT VIEW ─────────────────────────────────────── -->
+    <section id="contact-view" class="view">
+        <div class="content-card">
+            <h2>Get in Touch</h2>
+            <p>Have questions, suggestions, or need support?</p>
+
+            <div class="contact-details">
+                <div class="contact-item">📧 <strong>Email:</strong> ojtrackph.official@gmail.com</div>
+                <div class="contact-item">📍 <strong>Office:</strong> NOUS R&amp;D Hub, Las Piñas City, Philippines</div>
+            </div>
+
+            <div class="content-card" style="margin-top:24px;">
+                <h3>Send Feedback</h3>
+                <p style="font-size:0.88rem;color:var(--text-dim);margin-bottom:18px;">We read every message and respond as quickly as we can.</p>
+
+                <form id="feedbackForm" class="contact-form">
+                    <div class="input-row">
+                        <div class="input-group-field">
+                            <label for="name">Name</label>
+                            <input type="text"  id="name"  name="name"  placeholder="Juan Dela Cruz" required>
+                        </div>
+                        <div class="input-group-field">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" placeholder="juan@example.com" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group-field">
+                        <label for="subject">Subject</label>
+                        <select id="subject" name="subject">
+                            <option value="General Inquiry">General Inquiry</option>
+                            <option value="Technical Bug">Technical Bug</option>
+                            <option value="Account Access">Account Access</option>
+                            <option value="Partnership">Partnership / OJT Request</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group-field">
+                        <label for="message">Message</label>
+                        <textarea id="message" name="message" placeholder="Type your message here…" required></textarea>
+                    </div>
+
+                    <button type="submit" id="submitBtn">Send Message</button>
+                </form>
+                <p id="responseMessage" class="feedback-msg"></p>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════
+     LOGIN MODAL
+══════════════════════════════════════════════════════ -->
+<div id="login-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Portal Login">
+    <div class="login-card">
+        <button class="close-modal" onclick="toggleModal(false)" aria-label="Close login modal">&times;</button>
+
+        <div class="login-header">
+            <img src="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png" class="modal-logo" alt="OJTrack PH">
+            <h2>Portal Login</h2>
+            <p id="role-indicator">Accessing as <strong>Student</strong></p>
+        </div>
+
+        <div class="role-selector" role="group" aria-label="Select role">
+            <button id="student-role"    class="role-toggle active" onclick="setRole('student')">Student</button>
+            <button id="supervisor-role" class="role-toggle"        onclick="setRole('supervisor')">Adviser</button>
+        </div>
+
+        <form id="auth-form" class="auth-form" novalidate>
+            <div class="input-field">
+                <label for="login-email">School / Work Email</label>
+                <input type="email" id="login-email" placeholder="name@example.com" required autocomplete="email">
+            </div>
+            <div class="input-field password-wrapper">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+                <span id="toggle-password" class="toggle-emoji" role="button" aria-label="Toggle password visibility" tabindex="0">👁️</span>
+            </div>
+
+            <p id="login-error" style="color:var(--danger,#e05a5a);font-size:0.82rem;display:none;margin-top:-8px;margin-bottom:8px;" role="alert"></p>
+
+            <button type="submit" class="btn-login-main" id="login-submit-btn">
+                <span id="login-btn-label">SIGN IN TO DASHBOARD</span>
+                <span id="login-spinner" style="display:none;">⏳</span>
+            </button>
+        </form>
+
+        <div class="modal-footer">
+            <p class="register-text">New to OJTrack PH? <a href="all-pov/register.html" id="register-text-link">Create an Account</a></p>
+        </div>
+
+        <div class="form-footer">
+            <a href="#" id="forgot-password-link">Forgot Password?</a>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     LEGAL MODAL
+══════════════════════════════════════════════════════ -->
+<div id="legal-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="legal-title">
+    <div class="login-card legal-card">
+        <button class="close-modal" id="close-legal-btn" aria-label="Close">&times;</button>
+        <div class="login-header">
+            <img src="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png" class="modal-logo" alt="OJTrack PH">
+            <h2 id="legal-title">Legal Document</h2>
+            <p id="legal-subtitle">OJTrack PH &amp; Nous R&amp;D</p>
+        </div>
+        <div id="legal-content" class="legal-scroll-view"></div>
+        <div class="modal-footer" style="border-top:1px solid var(--border,#333);padding-top:15px;">
+            <button class="btn-login-main" id="legal-understand-btn">I UNDERSTAND</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════════════ -->
+<footer class="footer-main" role="contentinfo">
+    <div class="footer-top">
+        <div class="footer-brand">
+            <div class="nav-logo" style="margin-bottom:10px;">
+                <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH">
+                <span>OJTrack PH</span>
+            </div>
+            <p>Effective Training. Easy Tracking.</p>
+            <p>ojtrackph.official@gmail.com</p>
+        </div>
+
+        <div class="footer-links">
+            <div class="link-group">
+                <h5>Product</h5>
+                <a href="javascript:void(0)" onclick="showView('features')">Features</a>
+                <a href="javascript:void(0)" onclick="toggleModal(true)">Student Login</a>
+                <a href="javascript:void(0)" onclick="toggleModal(true)">Adviser Login</a>
+            </div>
+            <div class="link-group">
+                <h5>Company</h5>
+                <a href="javascript:void(0)" onclick="showView('about')">About Us</a>
+                <a href="javascript:void(0)" onclick="showView('contact')">Contact</a>
+            </div>
+            <div class="link-group">
+                <h5>Legal</h5>
+                <a href="#" id="privacy-link">Privacy Policy</a>
+                <a href="#" id="terms-link">Terms &amp; Conditions</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-bottom">
+        <p>&copy; 2026 OJTrack PH by Nous R&amp;D. All Rights Reserved.</p>
+        <div class="social-icons"></div>
+    </div>
+</footer>
+
+<script type="module" src="/js/index.js"></script>
 </body>
-
-<script type = "module" src="/js/index.js"></script>
-<script type = "module" src="firebase-config.js"></script>
-
 </html>

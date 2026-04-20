@@ -1,7 +1,7 @@
 import { protectPage } from "../authguard.js";
 import { db, auth } from "../firebase-config.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, getDoc, orderBy, limit, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, query, where, getDocs, doc, updateDoc, getDoc} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     initTheme,
     setupThemeToggle,
@@ -13,15 +13,9 @@ import {
 } from '../js/theme.js';
 
 import { setupNotificationSystem } from '../js/notifications.js';
+import '/js/ui-bootstrap.js';
 
 initTheme();
-
-const nameCache = {}; 
-let state = {
-    attendance: [],
-    documents: [],
-    myStudentUids: new Set() 
-};
 
 protectPage('supervisor').then((user) => {
     // Initialize your supervisor-specific data here
@@ -30,10 +24,7 @@ protectPage('supervisor').then((user) => {
 onAuthStateChanged(auth, async (user) => {
     if (user) {
 
-        setupInteractions(user); 
-        initCombinedRealTimeDashboard(user);
-        setupNotificationSystem(user.uid);
-        
+        setupNotificationSystem(user.uid);      
         await fetchUserProfile(user);
         await initializeSupervisorData(user.uid);
     } else {
@@ -58,44 +49,6 @@ async function updateTotalStats(user) {
     } catch (e) { return new Set(); }
 }
 
-function initCombinedRealTimeDashboard(user) {
-
-    updateTotalStats(user).then((uids) => {
-        state.myStudentUids = uids;
-        
-        // Listener for Attendance
-        const attendanceQ = query(collection(db, "attendance"), orderBy("timestamp", "asc"), limit(50));
-        onSnapshot(attendanceQ, (snapshot) => {
-            state.attendance = snapshot.docs.map(d => ({ id: d.id, ...d.data(), type: 'attendance' }));
-            renderUI(user);
-        });
-
-        // Listener for Requirements
-        const checklistQ = query(collection(db, "checklist"), orderBy("timestamp", "asc"), limit(50));
-        onSnapshot(checklistQ, (snapshot) => {
-            state.documents = snapshot.docs.map(d => ({ id: d.id, ...d.data(), type: 'document' }));
-            renderUI(user);
-        });
-    });
-}
-
-let renderTimeout;
-
-window.dismissSingleNotif = async (id, userId, type) => {
-    try {
-        const collectionName = type === 'attendance' ? 'attendance' : 'checklist';
-
-        const docRef = doc(db, collectionName, id);
-
-        await updateDoc(docRef, {
-            dismissedBy: arrayUnion(userId)
-        });
-
-    } catch (e) {
-        console.error("Dismiss Error:", e);
-    }
-};
-
 // Required for the Name lookup
 async function getStudentName(uid) {
     if (nameCache[uid]) return nameCache[uid];
@@ -109,88 +62,37 @@ async function getStudentName(uid) {
     return name;
 }
 
-// --- 2. Fixed Interaction & Toggle Logic ---
-
-function setupInteractions() {
-    const profileMenu = document.getElementById('profile-menu');
-    const notifModal = document.getElementById('notif-modal');
-    const themeBtn = document.getElementById('theme-toggle-btn');
-    const logoutBtn = document.getElementById('logout-link');
-
-    // Dropdowns
-    const profileTrigger = document.getElementById('profile-trigger');
-    if (profileTrigger) {
-        profileTrigger.onclick = (e) => {
-            e.stopPropagation();
-            profileMenu?.classList.toggle('show');
-            notifModal?.classList.remove('show');
-        };
-    }
-
-    const notifBtn = document.getElementById('notif-btn');
-    if (notifBtn) {
-        notifBtn.onclick = (e) => {
-            e.stopPropagation();
-            notifModal?.classList.toggle('show');
-            profileMenu?.classList.remove('show');
-        };
-    }
-
-    // Global click to close menus
-    window.onclick = () => {
-        profileMenu?.classList.remove('show');
-        notifModal?.classList.remove('show');
-    };
-
-    const clearBtn = document.getElementById('clear-all-notifs');
-
-    if (clearBtn) {
-    clearBtn.onclick = async (e) => {
-        e.stopPropagation();
-
-        const updates = [];
-
-        [...state.attendance, ...state.documents].forEach(item => {
-            const collectionName = item.type === 'attendance' ? 'attendance' : 'checklist';
-            const docRef = doc(db, collectionName, item.id);
-
-            updates.push(updateDoc(docRef, {
-                dismissedBy: arrayUnion(user.uid)
-            }));
-        });
-
-        await Promise.all(updates);
-    };
-}
-
-    if (logoutBtn) {
-        logoutBtn.onclick = () => signOut(auth).then(() => location.replace("/index.html"));
-    }
-}
-
 async function fetchUserProfile(user) {
     try {
-        const userDocRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userDocRef); 
-
+        const userSnap = await getDoc(doc(db, "users", user.uid)); 
         if (userSnap.exists()) {
             const userData = userSnap.data();
-            const userName = userData.name || "User";
 
-            // Update Header Name
-            const displayNameEl = document.getElementById('user-display-name');
-            if (displayNameEl) displayNameEl.innerText = userName;
+            const fullName =
+                userData.name ||
+                `${userData.firstName || ''} ${userData.surname || ''}`.trim() ||
+                "User";
 
-            // Update Pop-up Name
-            const displayNamePopEl = document.getElementById('user-display-name-pop');
-            if (displayNamePopEl) displayNamePopEl.innerText = userName;
+            // Header + modal text
+            if (document.getElementById('user-display-name'))
+                document.getElementById('user-display-name').innerText = fullName;
 
-            // Update Pop-up Email
-            const emailEl = document.getElementById('user-full-email');
-            if (emailEl) emailEl.innerText = user.email;
-        } 
-    } catch (error) {
-        console.error("Profile Fetch Error:", error);
+            if (document.getElementById('user-display-name-pop'))
+                document.getElementById('user-display-name-pop').innerText = fullName;
+
+            if (document.getElementById('user-full-email'))
+                document.getElementById('user-full-email').innerText = user.email;
+
+            const avatarEl = document.getElementById('adviser-avatar-initial');
+            if (avatarEl) {
+                avatarEl.textContent = fullName.charAt(0).toUpperCase();
+            }
+
+            // (Optional but recommended)
+            populateHeaderUser(fullName, user.email);
+        }
+    } catch (e) {
+        console.error("Profile Error:", e);
     }
 }
 

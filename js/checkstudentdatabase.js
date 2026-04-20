@@ -1,6 +1,6 @@
 import { protectPage } from "../authguard.js";
 import { db, auth } from "../firebase-config.js";
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { signOut} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     updateDoc, collection, query, where, onSnapshot, doc, getDoc, getDocs, addDoc, serverTimestamp, orderBy, limit 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -13,7 +13,6 @@ import {
     sanitizeText,
     formatTimestamp,
 } from '../js/theme.js';
-
 import { setupNotificationSystem } from '../js/notifications.js';
 
 initTheme();
@@ -29,23 +28,25 @@ let loggedDates = new Map();
 let currentCalMonth = new Date();
 let activeStudentUid = null;
 
-// 1. Auth Guarding
 protectPage('supervisor').then((user) => {
-});
 
-// 2. Auth State Listener (Main Entry Point)
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        await fetchUserProfile(user);
-        
+    setupThemeToggle('theme-toggle-btn');
+    setupThemeToggle('sidebar-theme-btn');
+    setupProfileDropdown();
+    setupNotifDropdown();
+    setupNotificationSystem(user.uid);
+
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () =>
+            signOut(auth).then(() => window.location.replace('/index.html'))
+        );
+    });
+
+        fetchUserProfile(user);      
         renderCalendar(currentCalMonth);
         initCombinedRealTimeDashboard(user); 
         setupInteractions(user);      
         initDashboard(); 
-        setupNotificationSystem(user.uid);
-    } else {
-        window.location.replace("/index.html");
-    }
 });
 
 function initCombinedRealTimeDashboard(user) {
@@ -53,36 +54,63 @@ function initCombinedRealTimeDashboard(user) {
     updateTotalStats(user).then((uids) => {
         state.myStudentUids = uids;
 
-        const attendanceQ = query(
-            collection(db, "attendance"),
-            orderBy("timestamp", "asc"),
-            limit(50)
-        );
+            const q = query(
+        collection(db, "attendance"),
+        where("uid", "==", activeStudentUid),  
+        orderBy("timestamp", "desc"),          
+        limit(50)
+    );
 
-        onSnapshot(attendanceQ, (snapshot) => {
-            state.attendance = snapshot.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-                type: "attendance"
-            }));
-            renderUI(user);
-        });
+   onSnapshot(q, (snapshot) => {
+      let totalApproved = 0;
+      const logCards = [];
 
-        const checklistQ = query(
-            collection(db, "checklist"),
-            orderBy("timestamp", "asc"),
-            limit(50)
-        );
+      snapshot.forEach(d => {
+          const log = d.data();
+          const isApproved = (log.status || '').toLowerCase() === 'approved';
+           if (isApproved) {
+              totalApproved += computeHoursDecimal(log.timeIn, log.timeOut);
+          }
 
-        onSnapshot(checklistQ, (snapshot) => {
-            state.documents = snapshot.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-                type: "document"
-            }));
-            renderUI(user);
-        });
+          logCards.push(buildLogCard(d.id, log));
+      });
+
+      // Render
+      const container = document.getElementById('log-cards-container');
+      if (container) {
+           container.innerHTML = logCards.length
+             ? logCards.join('')
+              : '<p class="empty-text">No attendance records found.</p>';
+      }
+
+  });
     });
+}
+
+function buildLogCard(id, log) {
+     const date  = log.displayDate || formatTimestamp(log.timestamp);  
+   const tIn   = log.timeIn  || '—';
+     const tOut  = log.timeOut || '—';
+    const hours = computeHoursDecimal(tIn, tOut).toFixed(2);
+    const status = log.status || 'Pending';
+
+    const statusBadge =
+         status === 'Approved' ? '<span class="badge badge-success">Approved</span>' :
+        status === 'Rejected' ? '<span class="badge badge-danger">Rejected</span>' :
+                          '<span class="badge badge-warning">Pending</span>';
+
+     const hasFile = log.attachment; 
+     const fileBtn = hasFile
+         ? `<button class="view-btn" onclick="openFile('${id}')">View</button>`
+        : '';
+
+    return `
+      <div class="log-card-item">
+         <span class="log-time">${tIn} → ${tOut}</span>
+        <span>${hours}h</span>
+         ${statusBadge}
+        ${fileBtn}
+       </div>`;
 }
 
 // Helper to keep the safeguard active
@@ -100,24 +128,25 @@ async function updateTotalStats(user) {
 }
 
 async function getStudentName(uid) {
-    if (nameCache[uid]) return nameCache[uid];
-    const userDoc = await getDoc(doc(db, "users", uid));
-    let name = "Unknown Student";
-    if (userDoc.exists()) {
-        const d = userDoc.data();
-        name = d.name || `${d.firstName || ''} ${d.surname || ''}`.trim() || "Anonymous";
-    }
-    nameCache[uid] = name;
-    return name;
-}
+     if (nameCache[uid]) return nameCache[uid];
+    const snap = await getDoc(doc(db, "users", uid));
+    let name = "Unknown";
+    if (snap.exists()) {
+        const d = snap.data();
+        name = d.name || `${d.firstName || ''} ${d.surname || ''}`.trim() || "Student";
 
-window.dismissSingleNotif = async (id, userId, type) => {
+    }
+     nameCache[uid] = name;
+    return name;
+ }
+
+window.dismissSingleNotif = async (id, uid, type) => {
     try {
         const collectionName = type === "attendance" ? "attendance" : "checklist";
         const ref = doc(db, collectionName, id);
 
         await updateDoc(ref, {
-            dismissedBy: arrayUnion(userId)
+            dismissedBy: arrayUnion(uid)
         });
 
     } catch (err) {
@@ -197,63 +226,30 @@ async function loadBatchDropdown() {
 }
 
 function setupInteractions(user) {
-    const profileMenu = document.getElementById('profile-menu');
-    const notifModal = document.getElementById('notif-modal');
-    const notifBtn = document.getElementById('notif-btn');
-    const clearAllBtn = document.getElementById('clear-all-notifs');
-    const themeBtn = document.getElementById('theme-toggle-btn');
-    const logoutBtn = document.getElementById('logout-link');
-
-    if (document.getElementById('profile-trigger')) {
-        document.getElementById('profile-trigger').onclick = (e) => {
-            e.stopPropagation();
-            profileMenu?.classList.toggle('show');
-            notifModal?.classList.remove('show');
-        };
-    }
-    
-      if (notifBtn) {
-        notifBtn.onclick = (e) => {
-            e.stopPropagation();
-            notifModal.classList.toggle('show');
-        };
-    }
-
-    if (clearAllBtn) {
-        clearAllBtn.onclick = (e) => {
-            e.stopPropagation();
-            // This grabs IDs from our global state and adds them to localStorage
-            const currentIds = [...state.attendance, ...state.documents].map(item => item.id);
-            const dismissed = JSON.parse(localStorage.getItem(`sup_dismissed_${user.uid}`) || "[]");
-            localStorage.setItem(`sup_dismissed_${user.uid}`, JSON.stringify([...new Set([...dismissed, ...currentIds])]));
-        };
-    }
-
     const prevBtn = document.getElementById('prevMonth');
     const nextBtn = document.getElementById('nextMonth');
 
     if (prevBtn) {
-        prevBtn.onclick = () => {
-            currentCalMonth = new Date(currentCalMonth.getFullYear(), currentCalMonth.getMonth() - 1, 1);
+        prevBtn.addEventListener('click', () => {
+            currentCalMonth = new Date(
+                currentCalMonth.getFullYear(),
+                currentCalMonth.getMonth() - 1,
+                1
+            );
             renderCalendar(currentCalMonth);
-        };
+        });
     }
 
     if (nextBtn) {
-        nextBtn.onclick = () => {
-            currentCalMonth = new Date(currentCalMonth.getFullYear(), currentCalMonth.getMonth() + 1, 1);
+        nextBtn.addEventListener('click', () => {
+            currentCalMonth = new Date(
+                currentCalMonth.getFullYear(),
+                currentCalMonth.getMonth() + 1,
+                1
+            );
             renderCalendar(currentCalMonth);
-        };
+        });
     }
-
-    if (logoutBtn) {
-        logoutBtn.onclick = () => signOut(auth).then(() => location.replace("/index.html"));
-    }
-
-    window.onclick = () => {
-        profileMenu?.classList.remove('show');
-        notifModal?.classList.remove('show');
-    };
 }
 
 async function fetchUserProfile(user) {
@@ -261,12 +257,31 @@ async function fetchUserProfile(user) {
         const userSnap = await getDoc(doc(db, "users", user.uid)); 
         if (userSnap.exists()) {
             const userData = userSnap.data();
-            const name = userData.name || "User";
-            if (document.getElementById('user-display-name')) document.getElementById('user-display-name').innerText = name;
-            if (document.getElementById('user-display-name-pop')) document.getElementById('user-display-name-pop').innerText = name;
-            if (document.getElementById('user-full-email')) document.getElementById('user-full-email').innerText = user.email;
-        } 
-    } catch (e) { console.error("Profile Error:", e); }
+
+            const fullName =
+                userData.name ||
+                `${userData.firstName || ''} ${userData.surname || ''}`.trim() ||
+                "User";
+
+            if (document.getElementById('user-display-name'))
+                document.getElementById('user-display-name').innerText = fullName;
+
+            if (document.getElementById('user-display-name-pop'))
+                document.getElementById('user-display-name-pop').innerText = fullName;
+
+            if (document.getElementById('user-full-email'))
+                document.getElementById('user-full-email').innerText = user.email;
+
+            const avatarEl = document.getElementById('adviser-avatar-initial');
+            if (avatarEl) {
+                avatarEl.textContent = fullName.charAt(0).toUpperCase();
+            }
+
+            populateHeaderUser(fullName, user.email);
+        }
+    } catch (e) {
+        console.error("Profile Error:", e);
+    }
 }
 
 function loadStudentList(batchId) {
@@ -317,7 +332,7 @@ async function viewStudentDetails(docId, studentData) {
     document.getElementById('selected-student-display').innerText = `${studentData.name} - OJT Progress`;
 
     const logContainer = document.getElementById('log-cards-container');
-    const logQuery = query(collection(db, "attendance"), where("uid", "==", activeStudentUid), orderBy("timestamp", "desc")); 
+    const logQuery = query(collection(db, "attendance"), orderBy("timestamp", "desc")); 
     
     const requiredHours = studentData.requiredHours || 600;
 

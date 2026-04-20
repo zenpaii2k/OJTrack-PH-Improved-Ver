@@ -21,9 +21,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
-    <!-- ═══════════════════════════════════════════
-         SIDEBAR
-    ═══════════════════════════════════════════ -->
     <nav class="side-navbar" aria-label="Adviser navigation">
         <div class="sidebar-logo">
             <a href="supervisordashboard.html">
@@ -31,34 +28,26 @@
             </a>
             <span>OJTrack PH</span>
         </div>
-
         <div class="nav-section-label">Adviser Portal</div>
-
         <nav class="nav-links">
-            <a href="supervisordashboard.html"  class="nav-item">🏠 <span class="nav-label">Dashboard</span></a>
-            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span class="nav-label">Attendance</span></a>
-            <a href="checkstudentreq.html"      class="nav-item">✔️ <span class="nav-label">Requirements</span></a>
-            <a href="batchmanagement.html"      class="nav-item">📁 <span class="nav-label">Manage Batch</span></a>
-            <a href="checkstudentreports.html"  class="nav-item active" aria-current="page">📄 <span class="nav-label">Reports</span></a>
+            <a href="supervisordashboard.html" class="nav-item">🏠 <span>Dashboard</span></a>
+            <a href="checkstudentdatabase.html" class="nav-item">🕒 <span>Attendance</span></a>
+            <a href="checkstudentreq.html" class="nav-item">✔️ <span>Requirements</span></a>
+            <a href="batchmanagement.html" class="nav-item">📁 <span>Manage Batch</span></a>
+            <a href="checkstudentreports.html" class="nav-item active">📄 <span>Reports</span></a>
         </nav>
-
         <div class="sidebar-bottom">
             <a href="supervisoraccount.html" class="sidebar-bottom-btn">👤 <span>My Profile</span></a>
-            <button id="sidebar-theme-btn"  class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
+            <button id="sidebar-theme-btn" class="sidebar-bottom-btn">🌓 <span>Toggle Theme</span></button>
             <button id="sidebar-logout-btn" class="sidebar-bottom-btn danger">🚪 <span>Logout</span></button>
         </div>
     </nav>
 
-    <!-- ═══════════════════════════════════════════
-         MAIN CONTENT
-    ═══════════════════════════════════════════ -->
     <div class="main-wrapper">
-
-        <!-- HEADER -->
-        <header class="dashboard-header" role="banner">
+    <header class="dashboard-header">
             <div class="page-title-area">
-                <h3 id="greeting-text">Welcome back, Adviser!</h3>
-                <p id="greeting-sub">Here's your students' overview.</p>
+                <h3>Review Reports</h3>
+                <p>Review OJT reports in a single click.</p>
             </div>
 
             <div class="header-tools">
@@ -66,8 +55,8 @@
                     <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
                     🔔
                     <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
-                    </button>
-                        <div id="notif-modal" class="notif-dropdown">
+                </button>
+                    <div id="notif-modal" class="notif-dropdown">
                         <div class="notif-header">
                             <span>Notifications</span>
                             <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
@@ -78,7 +67,6 @@
                     </div>
                 </div>
 
-                <!-- PROFILE -->
                 <div class="profile-dropdown">
                     <button id="profile-trigger" class="profile-pill">
                         <span id="user-display-name">Loading…</span>
@@ -99,98 +87,68 @@
             </div>
         </header>
 
-        <div class="main-layout">
-            <div class="top-controls">
-                <h2 class="gold-title">Review Student Reports</h2>
-                <div class="program-filter">
-                    <label style="color: #ffcc00; font-weight: bold;">Select Section/Batch</label>
-                    <select id="program-selector" class="program-dropdown">
-                    <option value="">Select Your Assigned Batch</option>
-                </select>
+        <main class="reports-layout">
+            <aside class="reports-sidebar">
+                <div class="reports-sidebar-header">
+                    <h3>Select Section/Batch</h3>
+                    <div class="report-filter-row">
+                        <select id="program-selector"></select>
+                    </div>
+
+                    <div class="student-meta">
+                        Students: <span id="student-count">0</span>
+                    </div>
                 </div>
 
-                <style>
-                    .student-card {
-                        background: #3a3a3a;
-                        border-bottom: 1px solid #444;
-                        padding: 15px;
-                        cursor: pointer;
-                        transition: 0.3s;
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        color: white;
-                    }
-                    .student-card:hover {
-                        background: #4a4a4a;
-                        border-left: 4px solid #ffcc00;
-                    }
-                    .mini-progress {
-                        height: 5px;
-                        background: #222;
-                        width: 100%;
-                        margin-top: 5px;
-                    }
-                    .mini-progress div {
-                        height: 100%;
-                        background: #ffcc00;
-                    }
-                </style>
-            </div>
+                <div class="report-student-list" id="student-list"></div>
+            </aside>
 
-            <div class="report-workspace">
-                <aside class="student-sidebar">
-                    <div class="sidebar-header">Students (<span id="student-count">0</span>)</div>
-                    <div id="student-list" class="student-list-container">
+            <section class="report-detail-panel">
+                <div id="no-selection-msg" class="report-empty-state">
+                    <span class="report-empty-emoji">📄</span>
+                    <h4 class="report-empty-title">No Student Selected</h4>
+                    <p class="report-empty-sub">Choose a student from the left to review their report.</p>
+                </div>
+
+                <div id="active-report-view" style="display: none;">
+                    <div class="report-info-card">
+                        <div class="report-info-header">
+                            <h2 id="view-student-name">Student Name</h2>
+                            <button id="download-report-btn" class="btn-action-blue">📥 Download PDF</button>
                         </div>
-                </aside>
-
-                <section class="report-details-panel">
-                    <div id="no-selection-msg">Select a student to view reports and send feedback.</div>
-                    
-                    <div id="active-report-view" style="display: none;">
-                        <div class="student-info-header">
-                            <div class="avatar-circle">👤</div>
-                            <div class="info-text">
-                                <h2 id="view-student-name">---</h2>
-                                <div class="meta-grid">
-                                    <p><strong>Email:</strong> <span id="view-student-email">---</span></p>
-                                    <p><strong>Course:</strong> <span id="view-student-course">---</span></p>
-                                    <p><strong>Section:</strong> <span id="view-student-section">---</span></p>
-                                    <p><strong>HTE:</strong> <span id="view-student-hte">---</span></p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="report-content-box">
-                            <h3>Report Details & Remarks</h3>
-                            
-                            <div class="report-controls-bar">
-                                <button id="download-report-btn" class="btn-action-blue">📥 Download Report</button>
-                                <div class="decision-group">
-                                    <button id="approve-report-btn" class="btn-action-green">✅ Approve</button>
-                                    <button id="reject-report-btn" class="btn-action-red">❌ Reject</button>
-                                </div>
-                            </div>
-
-                            <div id ="report-history"></div>
-
-                            <div class="report-text-area" id="report-body">
-                                <iframe id="adviser-pdf-preview" style="width:100%; height:500px; border: 1px solid #333; border-radius: 8px;"></iframe>
-                            </div>
-                        </div>
-
-                        <div class="feedback-input-area">
-                            <h3>Send Feedback</h3>
-                            <textarea id="feedback-body" placeholder="Type your feedback, instructions, or evaluation here..."></textarea>
-                            <button id="send-feedback-btn" class="btn-primary">📤 Send Feedback to Student</button>
+                        <div class="report-info-grid">
+                            <div class="report-info-item"><label>Email</label><p id="view-student-email">---</p></div>
+                            <div class="report-info-item"><label>Course</label><p id="view-student-course">---</p></div>
+                             <div class="report-info-item"><label>Section</label><p id="view-student-section">---</p></div>
+                            <div class="report-info-item"><label>HTE</label><p id="view-student-hte">---</p></div>
                         </div>
                     </div>
-                </section>
-            </div>
-        </div>
-    </div>
 
+                    <div class="report-preview-card">
+                        <div class="report-preview-header">
+                            <span>Document Preview</span>
+                            <div class="review-btns">
+                                <button id="btn-approve-report" class="btn-approve">✅ Approve</button>
+                                <button id="btn-reject-report" class="btn-reject">❌ Reject</button>
+                            </div>
+                        </div>
+                        <div class="report-preview-wrapper">
+                            <iframe id="adviser-pdf-preview" title="Report Preview"></iframe>
+                        </div>
+                    </div>
+
+                    <div class="review-action-card">
+
+                        <div id ="report-history"></div>
+
+                        <h4>Feedback & Remarks</h4>
+                        <textarea id="review-remarks" placeholder="Provide instructions or reasons for rejection..."></textarea>
+                        <button id="send-feedback-btn" class="btn-action-blue" style="width: 100%;">📤 Send Feedback</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
 </body>
 
 <script type= "module" src="/js/checkstudentreports.js"></script>

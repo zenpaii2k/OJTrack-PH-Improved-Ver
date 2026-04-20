@@ -1,143 +1,177 @@
-import { auth, db } from "../firebase-config.js";
-import { protectPage } from "../authguard.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { 
-    collection, query, orderBy, onSnapshot, doc, deleteDoc, getDoc, where, limit 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import {
-    initTheme,
-    setupThemeToggle,
-    setupProfileDropdown,
-    setupNotifDropdown,
-    populateHeaderUser,
-    sanitizeText,
-    formatTimestamp,
-} from '../js/theme.js';
+/**
+ * OJTrack PH — feedback.js
+ * ─────────────────────────────────────────────────────────────
+ * FIXES:
+ *  1. orderBy('timestamp') — matches what checkstudentdatabase.js WRITES
+ *     (adviser writes { timestamp: serverTimestamp() }, not createdAt)
+ *  2. fb.senderName (not fb.adviserName) — matches the write field
+ *  3. Theme toggle wired for both buttons
+ *  4. relativeTime(fb.timestamp) not fb.createdAt
+ * ─────────────────────────────────────────────────────────────
+ */
 
+import { auth, db } from '../firebase-config.js';
+import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import {
+    collection, query, orderBy, onSnapshot, doc, getDoc
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { protectPage } from '../authguard.js';
+import {
+    initTheme, setupThemeToggle, setupProfileDropdown,
+    setupNotifDropdown, populateHeaderUser, sanitizeText, relativeTime, formatTimestamp
+} from '../js/theme.js';
 import { setupNotificationSystem } from '../js/notifications.js';
 
 initTheme();
 
-// --- AUTH & INITIALIZATION ---
-protectPage('student').then((user) => {
-    if (!user) return;
+let allFeedback  = [];
+let activeFilter = 'all';
 
-    // Initialize UI Components
-    setupHeaderUI(user);
-    listenForFeedback(user.uid);
+protectPage('student').then((user) => {
+    // ✅ Wire both theme toggle buttons
+    setupThemeToggle('theme-toggle-btn');
+    setupThemeToggle('sidebar-theme-btn');
+    setupProfileDropdown();
+    setupNotifDropdown();
     setupNotificationSystem(user.uid);
-    
+    setupLogout();
+
+    loadUserProfile(user);
+    listenToFeedback(user.uid);
+    setupFilterButtons();
 });
 
-// --- UI SETUP FUNCTIONS ---
-function setupHeaderUI(user) {
-    const userRef = doc(db, "users", user.uid);
-    getDoc(userRef).then((snap) => {
-        if (snap.exists()) {
-            const data = snap.data();
-            document.getElementById('user-display-name').innerText = data.name || "Student";
-            document.getElementById('user-display-name-pop').innerText = data.name || "Student";
-            document.getElementById('user-full-email').innerText = user.email;
-        }
-    });
-
-    const profileTrigger = document.getElementById('profile-trigger');
-    const profileMenu = document.getElementById('profile-menu');
-    profileTrigger.onclick = (e) => {
-        e.stopPropagation();
-        profileMenu.classList.toggle('show');
-    };
-
-    const notifBtn = document.getElementById('notif-btn');
-    const notifModal = document.getElementById('notif-modal');
-    notifBtn.onclick = (e) => {
-        e.stopPropagation();
-        notifModal.classList.toggle('show');
-    };
-
-    document.getElementById('logout-link').onclick = () => {
-        signOut(auth).then(() => window.location.replace("/index.html"));
-    };
-
-    window.addEventListener('click', () => {
-        if(profileMenu) profileMenu.classList.remove('show');
-        if(notifModal) notifModal.classList.remove('show');
+function setupLogout() {
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () =>
+            signOut(auth).then(() => window.location.replace('/index.html'))
+        );
     });
 }
 
-// --- 4. FEEDBACK CORE LOGIC ---
+async function loadUserProfile(user) {
+    try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const name = data.name
+            || `${data.firstName || ''} ${data.surname || ''}`.trim()
+            || 'Student';
+        populateHeaderUser(name, user.email);
 
-function listenForFeedback(uid) {
-    const container = document.querySelector('.feedback-container');
-    const q = query(collection(db, "students", uid, "feedback"), orderBy("timestamp", "desc"));
-    
-    onSnapshot(q, (snapshot) => {
-        container.innerHTML = `<button class="btn-read-all">📩 Inbox</button>`;
-        
-        if (snapshot.empty) {
-            container.innerHTML += `<p style="padding:20px; color:gray; text-align:center;">No feedback from your adviser yet.</p>`;
-            return;
+        const adviserEl = document.getElementById('fb-adviser-name');
+        if (adviserEl) adviserEl.textContent = data.adviserName || 'Not assigned';
+    } catch (e) {
+        console.error('[Feedback] loadUserProfile:', e);
+    }
+}
+
+// ─── REALTIME LISTENER ───────────────────────────────────────
+function listenToFeedback(uid) {
+    // ✅ FIX: orderBy 'timestamp' — this is what checkstudentdatabase.js writes
+    const q = query(
+        collection(db, 'students', uid, 'feedback'),
+        orderBy('timestamp', 'desc')
+    );
+
+    onSnapshot(q, (snap) => {
+        allFeedback = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateSummary();
+        renderFeedback();
+    }, (err) => {
+        console.error('[Feedback] listener error:', err);
+        // Show empty state on error too
+        const listEl = document.getElementById('feedback-list');
+        if (listEl) listEl.innerHTML = buildEmptyState('Could not load feedback. Check your connection.');
+    });
+}
+
+function updateSummary() {
+    const total  = allFeedback.length;
+    const unread = allFeedback.filter(f => !f.isRead).length;
+    setText('fb-total-count',  String(total));
+    setText('fb-unread-count', String(unread));
+}
+
+function renderFeedback() {
+    const listEl = document.getElementById('feedback-list');
+    if (!listEl) return;
+
+    const toShow = activeFilter === 'unread'
+        ? allFeedback.filter(f => !f.isRead)
+        : allFeedback;
+
+    if (toShow.length === 0) {
+        listEl.innerHTML = buildEmptyState();
+        return;
+    }
+
+    listEl.innerHTML = toShow.map(buildFeedbackCard).join('');
+}
+
+function buildFeedbackCard(fb) {
+    // ✅ FIX: adviser writes 'senderName' not 'adviserName'
+    const author   = sanitizeText(fb.senderName || fb.adviserName || 'Adviser');
+    const message  = sanitizeText(fb.message || '');
+    // ✅ FIX: use 'timestamp' not 'createdAt'
+    const time     = relativeTime(fb.timestamp) || formatTimestamp(fb.timestamp);
+    const initial  = author.charAt(0).toUpperCase();
+    const unread   = !fb.isRead ? 'unread' : '';
+    const subject  = sanitizeText(fb.subject || '');
+
+    // Star rating
+    let stars = '';
+    if (fb.rating && typeof fb.rating === 'number') {
+        for (let i = 1; i <= 5; i++) {
+            stars += `<span class="fb-star${i > fb.rating ? ' empty' : ''}">★</span>`;
         }
+        stars = `<div class="fb-rating">${stars}</div>`;
+    }
 
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const docId = docSnap.id;
-            const date = data.timestamp ? data.timestamp.toDate().toLocaleDateString() : "Recent";
-            
-            const card = document.createElement('div');
-            card.className = "feedback-card unread";
-            card.innerHTML = `
-                <div class="card-header">
-                    <div class="sender-info">
-                        <span class="status-dot"></span>
-                        <div class="sender-meta">
-                            <strong>${data.senderName || "Name"}</strong>
-                            <span class="sender-role">${data.senderRole || "OJT Adviser"}</span>
-                        </div>
-                        <span class="date">${date}</span>
-                    </div>
-                    <div class="card-actions">
-                        <button class="btn-view" id="view-${docId}">View</button>
-                        <button class="btn-delete" id="del-${docId}">🗑️</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <h3>${data.subject || "General Remarks"}</h3>
-                    <p>${(data.message || "").substring(0, 80)}...</p>
-                </div>`;
-            container.appendChild(card);
+    const categoryBadge = subject
+        ? `<span class="fb-category">${subject}</span>`
+        : '';
 
-            document.getElementById(`view-${docId}`).onclick = () => 
-                openDetailView(data.senderName, data.senderRole, date, data.subject, data.message);
-            
-            document.getElementById(`del-${docId}`).onclick = async (e) => {
-                e.stopPropagation();
-                if(confirm("Delete this feedback?")) await deleteDoc(doc(db, "students", uid, "feedback", docId));
-            };
+    return `
+      <div class="fb-card ${unread}">
+        <div class="fb-avatar">${initial}</div>
+        <div class="fb-body">
+          <div class="fb-meta">
+            <span class="fb-author">${author}</span>
+            <span class="fb-time">${time}</span>
+          </div>
+          <p class="fb-message">${message}</p>
+          ${stars}
+          ${categoryBadge}
+        </div>
+      </div>`;
+}
+
+function buildEmptyState(msg) {
+    const text = msg || (activeFilter === 'unread'
+        ? 'All caught up! No unread messages.'
+        : 'No feedback from your adviser yet.');
+
+    return `
+      <div class="fb-empty-state">
+        <span class="fb-empty-emoji">💬</span>
+        <p class="fb-empty-title">${text}</p>
+        <p class="fb-empty-sub">Feedback will appear here when your adviser sends a message.</p>
+      </div>`;
+}
+
+function setupFilterButtons() {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeFilter = btn.dataset.filter;
+            renderFeedback();
         });
     });
 }
 
-function openDetailView(sender, role, date, subject, message) {
-    const layout = document.querySelector('.feedback-layout');
-    layout.innerHTML = `
-        <div class="feedback-badge">View Feedback</div>
-        <section class="feedback-container detail-view">
-            <div class="view-btns">
-                <button class="btn-back" onclick="location.reload()">← Back to Inbox</button>
-            </div>
-            <div class="message-display-card">
-                <div class="card-header">
-                    <div>
-                        <strong>${sender}</strong>
-                        <div class="sender-role">${role}</div>
-                    </div>
-                    <span class="date">${date}</span>
-                </div>
-                <div class="card-body">
-                    <h2 class="formal-subject">${subject}</h2>
-                    <div class="message-text" style="white-space: pre-wrap;">${message}</div>
-                </div>
-            </div>
-        </section>`;
+function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
 }
