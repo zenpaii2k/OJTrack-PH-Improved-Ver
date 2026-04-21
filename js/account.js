@@ -241,6 +241,7 @@ function setupPasswordChange(user) {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+
         const { updatePassword } = await import(
             'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
         );

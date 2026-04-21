@@ -95,7 +95,6 @@
     border-radius: var(--radius-sm);
     padding: 6px 4px;
     outline: none;
-    -moz-appearance: textfield;
 }
 
 .digital-clock input[type="number"]::-webkit-inner-spin-button,

@@ -27,6 +27,8 @@ let state = {
 let loggedDates = new Map();
 let currentCalMonth = new Date();
 let activeStudentUid = null;
+let unsubscribeAttendance = null;
+let unsubscribeStudentLogs = null;
 
 protectPage('supervisor').then((user) => {
 
@@ -53,37 +55,6 @@ function initCombinedRealTimeDashboard(user) {
 
     updateTotalStats(user).then((uids) => {
         state.myStudentUids = uids;
-
-            const q = query(
-        collection(db, "attendance"),
-        where("uid", "==", activeStudentUid),  
-        orderBy("timestamp", "desc"),          
-        limit(50)
-    );
-
-   onSnapshot(q, (snapshot) => {
-      let totalApproved = 0;
-      const logCards = [];
-
-      snapshot.forEach(d => {
-          const log = d.data();
-          const isApproved = (log.status || '').toLowerCase() === 'approved';
-           if (isApproved) {
-              totalApproved += computeHoursDecimal(log.timeIn, log.timeOut);
-          }
-
-          logCards.push(buildLogCard(d.id, log));
-      });
-
-      // Render
-      const container = document.getElementById('log-cards-container');
-      if (container) {
-           container.innerHTML = logCards.length
-             ? logCards.join('')
-              : '<p class="empty-text">No attendance records found.</p>';
-      }
-
-  });
     });
 }
 
@@ -288,7 +259,6 @@ function loadStudentList(batchId) {
     if (!batchId) return;
     const container = document.getElementById('student-rows-container');
     
-    // Show loading state in the table
     container.innerHTML = '<div class="loading-text">Loading students...</div>';
 
     const q = query(collection(db, "students"), where("batch", "==", batchId));
@@ -329,21 +299,33 @@ async function viewStudentDetails(docId, studentData) {
     document.getElementById('student-detail-view').style.display = 'block';
     
     activeStudentUid = studentData.uid || docId;
-    document.getElementById('selected-student-display').innerText = `${studentData.name} - OJT Progress`;
+
+    document.getElementById('selected-student-display').innerText =
+        `${studentData.name} - OJT Progress`;
 
     const logContainer = document.getElementById('log-cards-container');
-    const logQuery = query(collection(db, "attendance"), orderBy("timestamp", "desc")); 
-    
+
+    // 🔥 IMPORTANT: Unsubscribe previous listener
+    if (unsubscribeStudentLogs) {
+        unsubscribeStudentLogs();
+    }
+
+    const logQuery = query(
+        collection(db, "attendance"),
+        where("uid", "==", activeStudentUid), // ✅ FIXED
+        orderBy("timestamp", "desc")
+    );
+
     const requiredHours = studentData.requiredHours || 600;
 
-    onSnapshot(logQuery, (snapshot) => {
+    unsubscribeStudentLogs = onSnapshot(logQuery, (snapshot) => {
         logContainer.innerHTML = "";
         loggedDates.clear(); 
         
         let totalApprovedMinutes = 0;
 
         if (snapshot.empty) {
-            logContainer.innerHTML= "<p style='color:#888; padding:20px;'>No logs found for this student.</p>";
+            logContainer.innerHTML = "<p style='color:#888; padding:20px;'>No logs found for this student.</p>";
             updateProgressBar(0, requiredHours);
             renderCalendar(currentCalMonth);
             return;
@@ -354,7 +336,6 @@ async function viewStudentDetails(docId, studentData) {
             const logId = logDoc.id;
             const status = log.status || "Pending";
             
-            // Map status to calendar
             loggedDates.set(log.displayDate, status);
 
             if (status === "Approved" && log.timeIn && log.timeOut) {
@@ -364,8 +345,7 @@ async function viewStudentDetails(docId, studentData) {
             const isLocked = status !== "Pending";
             const card = document.createElement('div');
             card.className = "log-review-card";
-            
-            // Re-introducing the Accomplishment Note section
+
             card.innerHTML = `
                 <div class="log-card-inner" style="background:#1e1e1e; padding:15px; border-radius:8px; margin-bottom:12px; border-left: 5px solid ${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#f1c40f'};">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -376,7 +356,7 @@ async function viewStudentDetails(docId, studentData) {
                                     ${status.toUpperCase()}
                                 </span>
                             </div>
-                            
+
                             <div style="color:#aaa; font-size:0.85rem; margin-top:8px;">
                                 <span style="background: rgba(255,212,0,0.1); color: #ffd400; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
                                     🕒 ${log.timeIn} — ${log.timeOut}
@@ -391,7 +371,7 @@ async function viewStudentDetails(docId, studentData) {
                                 </p>
                             </div>
                         </div>
-                        
+
                         <div class="log-actions" style="display:flex; flex-direction:column; gap:8px;">
                             ${!isLocked ? `
                                 <button onclick="confirmLogAction('${logId}', 'Approved')" 

@@ -1,15 +1,3 @@
-/**
- * OJTrack PH — ojtattendance.js
- * ─────────────────────────────────────────────────────────────
- * FIXES:
- *  1. Writes: 'uid' (not 'userId'), 'timestamp' (not 'createdAt'),
- *             'displayDate', 'attachment' (not 'attachmentBase64')
- *  2. Reads:  where('uid'), orderBy('timestamp')
- *  3. Theme toggle wired for sidebar-theme-btn AND theme-toggle-btn
- *  4. Computed hours from timeIn/timeOut (schema has no hoursRendered)
- * ─────────────────────────────────────────────────────────────
- */
-
 import { protectPage } from '../authguard.js';
 import { auth, db } from '../firebase-config.js';
 import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
@@ -28,7 +16,7 @@ initTheme();
 
 let currentCalMonth = new Date();
 let userData = null;
-let loggedDateSet = new Set(); // for calendar highlighting
+let loggedDateMap = new Map(); // key → status
 
 // ─── AUTH ────────────────────────────────────────────────────
 protectPage('student').then((user) => {
@@ -50,7 +38,7 @@ protectPage('student').then((user) => {
     setupFileLabel();
 
     // Date header
-    const dateEl = document.getElementById('current-date-display-inner');
+    const dateEl = document.getElementById('current-date-display');
     if (dateEl) {
         dateEl.textContent = `📅 ${new Date().toLocaleDateString('en-PH', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -190,16 +178,15 @@ function setupForm(user) {
                 attachment = await fileToBase64(fileInput.files[0]);
             }
 
-            // ✅ Write correct schema fields
             await addDoc(collection(db, 'attendance'), {
-                uid:         user.uid,           // ✅ 'uid' not 'userId'
-                displayDate: displayDate,         // ✅ 'displayDate' not 'date'
+                uid:         user.uid,       
+                displayDate: displayDate,    
                 timeIn:      tIn,
                 timeOut:     tOut,
                 note:        note,
-                attachment:  attachment,          // ✅ 'attachment' not 'attachmentBase64'
-                status:      'pending',
-                timestamp:   serverTimestamp(),   // ✅ 'timestamp' not 'createdAt'
+                attachment:  attachment,        
+                status:      'Pending',
+                timestamp:   serverTimestamp(), 
                 dismissedBy: [],
             });
 
@@ -220,7 +207,6 @@ function setupForm(user) {
 
 // ─── REALTIME LOG LISTENER ────────────────────────────────────
 function listenToAttendanceLogs(uid) {
-    // ✅ FIX: where('uid'), orderBy('timestamp')
     const q = query(
         collection(db, 'attendance'),
         where('uid', '==', uid),
@@ -230,7 +216,7 @@ function listenToAttendanceLogs(uid) {
 
     onSnapshot(q, (snap) => {
         const listEl = document.getElementById('log-list');
-        loggedDateSet.clear();
+        loggedDateMap.clear();
 
         if (!listEl) return;
 
@@ -244,56 +230,89 @@ function listenToAttendanceLogs(uid) {
 
         listEl.innerHTML = snap.docs.map(d => {
             const log  = d.data();
-            // ✅ FIX: use 'displayDate' not 'date'
-            const date  = sanitizeText(log.displayDate || formatTimestamp(log.timestamp));
-            const tIn   = sanitizeText(log.timeIn  || '—');
-            const tOut  = sanitizeText(log.timeOut || '—');
-            const hrs   = computeHoursDecimal(log.timeIn, log.timeOut);
+            const date = sanitizeText(log.displayDate || formatTimestamp(log.timestamp));
+            const tIn  = sanitizeText(log.timeIn  || '—');
+            const tOut = sanitizeText(log.timeOut || '—');
+            const hrs  = computeHoursDecimal(log.timeIn, log.timeOut);
             const hrsStr = hrs > 0 ? `${hrs.toFixed(2)}h` : '—';
-            const note  = log.note ? sanitizeText(log.note) : '';
+            const note = log.note ? sanitizeText(log.note) : '';
 
-            if ((log.status || '').toLowerCase() === 'approved') totalApproved += hrs;
+            if (log.status === 'Approved') totalApproved += hrs;
 
-            // For calendar
             if (log.timestamp?.toDate) {
-                const d = log.timestamp.toDate();
-                loggedDateSet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+                const dte = log.timestamp.toDate();
+                const key = `${dte.getFullYear()}-${dte.getMonth()}-${dte.getDate()}`;
+                const status = (log.status || 'Pending').trim();
+                const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+                const norm = (log.status || 'Pending').trim();
+                const fixedStatus =
+                    norm.toLowerCase() === 'approved' ? 'Approved' :
+                    norm.toLowerCase() === 'rejected' ? 'Rejected' :
+                    'Pending';
+
+                loggedDateMap.set(key, fixedStatus);
             }
 
             const statusMap = {
-                approved: '<span class="badge badge-success">✅ Approved</span>',
-                rejected: '<span class="badge badge-danger">❌ Rejected</span>',
-                pending:  '<span class="badge badge-warning">⏳ Pending</span>',
+                Approved: '<span class="badge badge-success">✅ Approved</span>',
+                Rejected: '<span class="badge badge-danger">❌ Rejected</span>',
+                Pending:  '<span class="badge badge-warning">⏳ Pending</span>',
             };
-            const badge = statusMap[(log.status || 'pending').toLowerCase()] || statusMap.pending;
 
-            // ✅ FIX: use 'attachment' field
+            const badge = statusMap[log.status] || statusMap.Pending;
+
             const hasFile = log.attachment;
-            const fileBtn = hasFile
-                ? `<button class="view-btn" data-src="${sanitizeText(log.attachment).slice(0,50)}...">View</button>`
-                : '—';
 
             return `
-              <div class="log-entry">
-                <span class="log-date">${date}</span>
-                <span class="log-time">${tIn}</span>
-                <span class="log-time">${tOut}</span>
-                <span style="font-family:var(--font-display);font-weight:700;color:var(--brand-gold);">${hrsStr}</span>
-                ${badge}
-                <span>${hasFile ? `<button class="view-btn" onclick="openAttachmentById('${sanitizeText(d.id)}')">View</button>` : '—'}</span>
-              </div>
-              ${note ? `<div style="padding:2px 0 8px 0;font-size:0.78rem;color:var(--text-muted);">📝 ${note}</div>` : ''}`;
+                <div class="log-entry" style="
+                    display:grid;
+                    grid-template-columns: 1.2fr 0.8fr 0.8fr 0.6fr 1fr 0.6fr;
+                    align-items:center;
+                    gap:10px;
+                    padding:10px 0;
+                    border-bottom:1px solid rgba(255,255,255,0.05);
+                ">
+
+                    <div class="col-date">${date}</div>
+                    <div class="col-in">${tIn}</div>
+                    <div class="col-out">${tOut}</div>
+                    <div class="col-hours" style="color:var(--brand-gold); font-weight:700;">
+                        ${hrsStr}
+                    </div>
+
+                    <div class="col-status">
+                        ${badge}
+                    </div>
+
+                    <div class="col-file">
+                        ${hasFile 
+                            ? `<button class="view-btn" onclick="openAttachmentById('${sanitizeText(d.id)}')">View</button>`
+                            : '<span class="no-file">—</span>'}
+                    </div>
+
+                </div>
+
+                ${note ? `
+                <div style="
+                    font-size:0.78rem;
+                    color:var(--text-muted);
+                    padding:4px 0 10px 0;
+                    margin-left:2px;
+                ">
+                📝 ${note}
+                </div>` : ''}
+                `;
         }).join('');
 
-        // Store log data for view buttons
         window._attendanceLogs = {};
         snap.docs.forEach(d => {
             window._attendanceLogs[d.id] = d.data();
         });
 
         updateSummary(totalApproved, parseFloat(userData?.requiredHours) || 600);
-        renderCalendar(currentCalMonth); // re-render with logged days
-    }, err => console.error('[Attendance] listener error:', err));
+        renderCalendar(currentCalMonth);
+    });
 }
 
 window.openAttachmentById = function(id) {
@@ -345,12 +364,12 @@ function setupCalendarNav() {
 }
 
 function renderCalendar(date) {
-    const grid    = document.getElementById('mini-calendar');
+    const grid = document.getElementById('mini-calendar');
     const display = document.getElementById('monthDisplay');
     if (!grid || !display) return;
 
     grid.innerHTML = '';
-    const year  = date.getFullYear();
+    const year = date.getFullYear();
     const month = date.getMonth();
     display.textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
 
@@ -360,21 +379,34 @@ function renderCalendar(date) {
         grid.appendChild(b);
     });
 
-    const firstDay    = new Date(year, month, 1).getDay();
+    const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today       = new Date();
+    const today = new Date();
 
     for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
 
     for (let i = 1; i <= daysInMonth; i++) {
-        const el  = document.createElement('div');
+        const el = document.createElement('div');
         el.textContent = i;
+
         const key = `${year}-${month}-${i}`;
+        const status = loggedDateMap.get(key);
+
         if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
-            el.className = 'today-circle';
-        } else if (loggedDateSet.has(key)) {
-            el.className = 'has-log';
+            el.classList.add('today-circle');
         }
+
+        switch (status) {
+            case 'Approved':
+                el.classList.add('cal-approved');
+                break;
+            case 'Rejected':
+                el.classList.add('cal-rejected');
+                break;
+            default:
+                el.classList.add('cal-pending');
+        }
+
         grid.appendChild(el);
     }
 }

@@ -81,9 +81,7 @@ async function loadUserProfile(user) {
 
         // Info strip
         setEl('chip-company', `🏢 ${userData.company || 'No company set'}`);
-        setEl('chip-batch',   `📁 ${userData.batch   || 'No batch assigned'}`);
-        setEl('chip-adviser', `👨‍🏫 ${userData.adviserName || 'No adviser set'}`);
-        // ✅ FIX: schema uses 'fullSection' and 'course'
+        setEl('chip-school',   `📁 ${userData.school  || 'No batch assigned'}`);
         setEl('chip-course',  `🎓 ${userData.course || '—'} · ${userData.fullSection || userData.section || '—'}`);
 
         updateProgressStats(userData);
