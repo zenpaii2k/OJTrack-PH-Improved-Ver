@@ -116,6 +116,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.85rem;
+    table-layout: fixed;
 }
 
 .checklist-table th {
@@ -127,7 +128,9 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-muted);
-    background: var(--bg-elevated);
+    background: var(--bg-elevated);  
+    vertical-align: middle;
+      word-wrap: break-word;
 }
 
 .checklist-table td {
@@ -135,10 +138,16 @@
     border-bottom: 1px solid var(--border);
     color: var(--text-primary);
     vertical-align: middle;
+    word-wrap: break-word;
 }
 
 .checklist-table tbody tr:last-child td { border-bottom: none; }
 .checklist-table tbody tr:hover td { background: var(--bg-elevated); }
+
+.checklist-table th:nth-child(1) { width: 30%; }
+.checklist-table th:nth-child(2) { width: 25%; }
+.checklist-table th:nth-child(3) { width: 25%; }
+.checklist-table th:nth-child(4) { width: 20%; }
 
 /* Section divider rows (Forms / Requirements headers) */
 .section-divider td {
@@ -146,10 +155,10 @@
     border-left: 3px solid var(--brand-gold);
     color: var(--brand-gold);
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.82rem;
     letter-spacing: 0.03em;
-    padding: 10px 14px;
+    padding: 8px 10px;
 }
 
 /* Document name cell */
@@ -191,7 +200,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
 }
 
@@ -321,14 +330,21 @@
 .btn-secondary:hover { background: var(--border); }
 
 /* ─── PREVIEW MODAL ──────────────────────────────────────────── */
+
+.modal-content.preview-content {
+    width: 95%;
+    height: 95vh;
+    max-width: none;
+}
+
 .preview-content {
     background: var(--bg-surface);
     border: 1px solid var(--border-mid);
     border-radius: var(--radius-xl);
     padding: 24px;
     width: 90%;
-    max-width: 700px;
-    max-height: 85vh;
+    max-width: 750px;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
     gap: 14px;

@@ -258,6 +258,33 @@
     gap: 8px;
 }
 
+.cal-grid div {
+    padding: 8px;
+    text-align: center;
+    border-radius: 8px;
+    transition: all 0.25s ease;
+}
+
+.cal-empty {
+    opacity: 0.3;
+}
+
+.cal-pending {
+    background: yellow;
+    color: #ffc107;
+}
+
+.cal-approved {
+    background: green;
+    color: #28a745;
+    box-shadow: 0 0 6px rgba(40,167,69,0.5);
+}
+
+.cal-rejected {
+    background: red;
+    color: #dc3545;
+}
+
 /* Individual log entry row */
 .log-entry {
     display: grid;

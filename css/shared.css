@@ -964,7 +964,6 @@ body {
   font-size: 0.88rem;
   transition: border-color var(--transition), box-shadow var(--transition);
   outline: none;
-  -webkit-appearance: none;
 }
 
 .input-group input:focus,

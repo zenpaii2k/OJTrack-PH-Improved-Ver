@@ -1,19 +1,7 @@
-/**
- * OJTrack PH — feedback.js
- * ─────────────────────────────────────────────────────────────
- * FIXES:
- *  1. orderBy('timestamp') — matches what checkstudentdatabase.js WRITES
- *     (adviser writes { timestamp: serverTimestamp() }, not createdAt)
- *  2. fb.senderName (not fb.adviserName) — matches the write field
- *  3. Theme toggle wired for both buttons
- *  4. relativeTime(fb.timestamp) not fb.createdAt
- * ─────────────────────────────────────────────────────────────
- */
-
 import { auth, db } from '../firebase-config.js';
 import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
-    collection, query, orderBy, onSnapshot, doc, getDoc
+    collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { protectPage } from '../authguard.js';
 import {
@@ -28,7 +16,6 @@ let allFeedback  = [];
 let activeFilter = 'all';
 
 protectPage('student').then((user) => {
-    // ✅ Wire both theme toggle buttons
     setupThemeToggle('theme-toggle-btn');
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
@@ -38,6 +25,7 @@ protectPage('student').then((user) => {
 
     loadUserProfile(user);
     listenToFeedback(user.uid);
+    setupFeedbackClick(user.uid);
     setupFilterButtons();
 });
 
@@ -110,39 +98,23 @@ function renderFeedback() {
 }
 
 function buildFeedbackCard(fb) {
-    // ✅ FIX: adviser writes 'senderName' not 'adviserName'
-    const author   = sanitizeText(fb.senderName || fb.adviserName || 'Adviser');
-    const message  = sanitizeText(fb.message || '');
-    // ✅ FIX: use 'timestamp' not 'createdAt'
-    const time     = relativeTime(fb.timestamp) || formatTimestamp(fb.timestamp);
-    const initial  = author.charAt(0).toUpperCase();
-    const unread   = !fb.isRead ? 'unread' : '';
-    const subject  = sanitizeText(fb.subject || '');
-
-    // Star rating
-    let stars = '';
-    if (fb.rating && typeof fb.rating === 'number') {
-        for (let i = 1; i <= 5; i++) {
-            stars += `<span class="fb-star${i > fb.rating ? ' empty' : ''}">★</span>`;
-        }
-        stars = `<div class="fb-rating">${stars}</div>`;
-    }
-
-    const categoryBadge = subject
-        ? `<span class="fb-category">${subject}</span>`
-        : '';
+    const author  = sanitizeText(fb.senderName || fb.adviserName || 'Adviser');
+    const message = sanitizeText(fb.message || '');
+    const time    = relativeTime(fb.timestamp) || formatTimestamp(fb.timestamp);
+    const initial = author.charAt(0).toUpperCase();
+    const unread  = !fb.isRead ? 'unread' : '';
+    const subject = sanitizeText(fb.subject || '');
 
     return `
-      <div class="fb-card ${unread}">
+      <div class="fb-card ${unread}" data-id="${fb.id}">
         <div class="fb-avatar">${initial}</div>
         <div class="fb-body">
           <div class="fb-meta">
             <span class="fb-author">${author}</span>
             <span class="fb-time">${time}</span>
           </div>
-          <p class="fb-message">${message}</p>
-          ${stars}
-          ${categoryBadge}
+          <p class="fb-message">${message.slice(0, 80)}...</p>
+          ${subject ? `<span class="fb-category">${subject}</span>` : ''}
         </div>
       </div>`;
 }
@@ -158,6 +130,75 @@ function buildEmptyState(msg) {
         <p class="fb-empty-title">${text}</p>
         <p class="fb-empty-sub">Feedback will appear here when your adviser sends a message.</p>
       </div>`;
+}
+
+function openFeedbackModal(fb) {
+    document.getElementById('fb-modal-author').textContent =
+        fb.senderName || 'Adviser';
+
+    document.getElementById('fb-modal-subject').textContent =
+        fb.subject || '';
+
+    document.getElementById('fb-modal-message').textContent =
+        fb.message || '';
+
+    document.getElementById('fb-modal-time').textContent =
+        relativeTime(fb.timestamp);
+
+    const modal = document.getElementById('fb-modal');
+    modal.classList.add('show');
+
+    document.getElementById('fb-close').onclick = closeFeedbackModal;
+
+    modal.onclick = (e) => {
+        if (e.target.id === 'fb-modal') closeFeedbackModal();
+    };
+
+    const deleteBtn = document.getElementById('fb-delete');
+
+    deleteBtn.onclick = async () => {
+        const confirmDelete = confirm("Delete this feedback permanently?");
+        if (!confirmDelete) return;
+
+        try {
+            await deleteDoc(doc(db, 'students', auth.currentUser.uid, 'feedback', fb.id));
+
+            closeFeedbackModal();
+        } catch (err) {
+            console.error('[Feedback] delete error:', err);
+            alert('Failed to delete feedback.');
+        }
+    };
+}
+
+function closeFeedbackModal() {
+    const modal = document.getElementById('fb-modal');
+    modal.classList.remove('show');
+}
+
+function setupFeedbackClick(uid) {
+    const listEl = document.getElementById('feedback-list');
+
+    listEl.addEventListener('click', async (e) => {
+    const card = e.target.closest('.fb-card');
+    if (!card) return;
+
+    const id = card.dataset.id;
+    const fb = allFeedback.find(f => f.id === id);
+    if (!fb) return;
+
+    openFeedbackModal(fb);
+
+    if (!fb.isRead) {
+        await updateDoc(doc(db, 'students', uid, 'feedback', id), {
+            isRead: true
+        });
+
+        fb.isRead = true;
+        updateSummary();
+        renderFeedback();
+    }
+});
 }
 
 function setupFilterButtons() {

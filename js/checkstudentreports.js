@@ -340,7 +340,15 @@ function generateAdviserPreview(reportData) {
     pdfdoc.autoTable({
         startY: pdfdoc.lastAutoTable.finalY + 15,
         head: [['Date', 'Time In', 'Time Out', 'Accomplishment', 'Status']], 
-        body: reportData.attendance.length > 0 ? reportData.attendance : [['-', '-', '-', 'No logs found', '-']],
+        body: reportData.attendance.length > 0
+            ? reportData.attendance.map(a => [
+            a.displayDate || formatTimestamp(a.timestamp),
+            a.timeIn || '—',
+            a.timeOut || '—',
+            a.note || '—',
+            a.status || 'Pending'
+        ])
+        : [['-', '-', '-', 'No logs found', '-']],
         headStyles: { fillColor: [44, 62, 80] },
         styles: { fontSize: 8 },
         columnStyles: { 
@@ -366,7 +374,11 @@ function generateAdviserPreview(reportData) {
     pdfdoc.autoTable({
         startY: 25,
         head: [['Requirement Item', 'Submission Date', 'Status']],
-        body: reportData.checklist,
+        body: reportData.checklist.map(c => [
+            c.formKey || '—',
+            c.dateSubmitted || '—',
+            c.status || 'Pending'
+        ]),
         headStyles: { fillColor: [230, 126, 34] },
         styles: { fontSize: 9 },
         didParseCell: function(data) {
@@ -399,10 +411,15 @@ function generateAdviserPreview(reportData) {
     const iframe = document.getElementById('adviser-pdf-preview');
 
     const blob = pdfdoc.output('blob');
-    const blobURL = URL.createObjectURL(blob);
 
     if (iframe) {
-        iframe.src = blobURL;
+        if (iframe.dataset.blobUrl) {
+            URL.revokeObjectURL(iframe.dataset.blobUrl);
+        }
+
+        const blobUrl = URL.createObjectURL(blob);
+        iframe.src = blobUrl;
+        iframe.dataset.blobUrl = blobUrl;
     }
 
     // ONLY mobile opens new tab (optional fallback view)

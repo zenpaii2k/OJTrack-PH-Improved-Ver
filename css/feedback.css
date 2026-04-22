@@ -11,7 +11,8 @@
 .feedback-page-grid {
     display: grid;
     gap: 20px;
-    max-width: 780px;
+    width: 100%;
+    max-width: none;
 }
 
 /* ─── SUMMARY CARD (stats strip at top) ──────────────────────── */
@@ -222,6 +223,110 @@
 .fb-empty-sub {
     font-size: 0.84rem;
     color: var(--text-muted);
+}
+
+.fb-card {
+    cursor: pointer;
+    transition: 0.15s ease;
+}
+
+.fb-card:hover {
+    transform: translateY(-2px);
+    background: rgba(0,0,0,0.03);
+}
+
+.fb-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(2px);
+    display: flex;
+    justify-content: flex-end;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.25s ease;
+    z-index: 9999;
+}
+
+.fb-modal.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.fb-modal.hidden {
+    display: flex;
+}
+
+.fb-modal-content {
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: min(520px, 100%);
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.25);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    padding: 22px;
+    overflow-y: auto;
+    border-radius: 0;
+}
+
+.fb-modal.show .fb-modal-content {
+    transform: translateX(0);
+}
+
+.fb-modal::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    opacity: 0;
+    transition: 0.25s ease;
+}
+
+.fb-modal.show::before {
+    opacity: 1;
+}
+
+.fb-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.fb-modal-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.fb-delete-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.2s ease;
+    font-family: var(--font-body);
+}
+
+.fb-delete-btn:hover {
+    background: #c0392b;
+}
+
+#fb-modal-message {
+    margin-top: 10px;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    color: var(--text-primary);
 }
 
 /* ─── RESPONSIVE ─────────────────────────────────────────────── */

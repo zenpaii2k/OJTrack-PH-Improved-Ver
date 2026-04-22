@@ -45,15 +45,18 @@
         <!-- HEADER -->
         <header class="dashboard-header" role="banner">
             <div class="page-title-area">
-                <h3>📄 Submit OJT Report</h3>
-                <p>Generate, preview, and submit your comprehensive OJT progress report</p>
+                <h3 id="greeting-text">Preview OJT Report</h3>
+                <p id="greeting-sub">Loading your OJT summary…</p>
             </div>
+
             <div class="header-tools">
-                <div class="notif-wrapper">
-                    <button id="notif-btn" class="notif-bell-btn" aria-label="Notifications">
-                        🔔 <span id="notif-badge" class="notif-badge" style="display:none;">0</span>
+                <!-- NOTIFICATION BELL -->
+                <div class="notif-wrapper" role="region" aria-label="Notifications">
+                    <button id="notif-btn" class="notif-bell-btn" aria-label="Open notifications" title="Notifications">
+                        🔔
+                        <span id="notif-badge" class="notif-badge" style="display:none;" aria-live="polite">0</span>
                     </button>
-                    <div id="notif-modal" class="notif-dropdown">
+                    <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
                         <div class="notif-header">
                             <span>Notifications</span>
                             <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
@@ -63,21 +66,24 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- PROFILE PILL -->
                 <div class="profile-dropdown">
-                    <button id="profile-trigger" class="profile-pill">
+                    <button id="profile-trigger" class="profile-pill" aria-haspopup="true" aria-expanded="false">
                         <span id="user-display-name">Loading…</span>
                         <div class="avatar-circle" id="avatar-initial">?</div>
                     </button>
-                    <div id="profile-menu" class="profile-pop">
+
+                    <div id="profile-menu" class="profile-pop" role="menu">
                         <div class="profile-info">
                             <strong id="user-display-name-pop">Student Name</strong>
-                            <p id="user-full-email"></p>
+                            <p id="user-full-email">email@example.com</p>
                         </div>
                         <hr>
-                        <a href="account.html"      class="menu-link">👤 My Profile</a>
-                        <button id="theme-toggle-btn" class="menu-link-btn">🌓 Toggle Theme</button>
+                        <a href="account.html" class="menu-link" role="menuitem">👤 My Profile</a>
+                        <button id="theme-toggle-btn" class="menu-link-btn" role="menuitem">🌓 Toggle Theme</button>
                         <hr>
-                        <button id="logout-link" class="logout-action">🚪 Logout</button>
+                        <button id="logout-link" class="logout-action" role="menuitem">🚪 Logout</button>
                     </div>
                 </div>
             </div>

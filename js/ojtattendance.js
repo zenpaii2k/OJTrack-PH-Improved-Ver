@@ -164,9 +164,7 @@ function setupForm(user) {
         const note  = sanitizeStr(document.getElementById('attendance-note')?.value || '');
         const today = new Date();
         // ✅ Correct fields per schema
-        const displayDate = today.toLocaleDateString('en-US', {
-            month: 'short', day: '2-digit', year: 'numeric'
-        });
+        const displayDate = new Date().toDateString();
 
         const btn = document.getElementById('submit-log-btn');
         if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
@@ -205,13 +203,22 @@ function setupForm(user) {
     });
 }
 
+// Ensure month and day are correctly padded for comparison
+function makeDateKey(date) {
+    const y = date.getFullYear();
+    // Use 1-based month for the key to avoid confusion with index 0
+    const m = String(date.getMonth() + 1).padStart(2, '0'); 
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
 // ─── REALTIME LOG LISTENER ────────────────────────────────────
 function listenToAttendanceLogs(uid) {
     const q = query(
         collection(db, 'attendance'),
         where('uid', '==', uid),
         orderBy('timestamp', 'desc'),
-        limit(30)
+        limit(60)
     );
 
     onSnapshot(q, (snap) => {
@@ -219,6 +226,33 @@ function listenToAttendanceLogs(uid) {
         loggedDateMap.clear();
 
         if (!listEl) return;
+
+        snap.docs.forEach(d => {
+            const log = d.data();
+            let key;
+
+            if (log.timestamp) {
+                // If server timestamp exists, use it
+                key = makeDateKey(log.timestamp.toDate());
+            } else if (log.displayDate) {
+                if (log.displayDate) {
+                const key = new Date(log.displayDate).toDateString();
+                const status = (log.status || 'Pending').trim();
+
+                if (loggedDateMap.get(key) !== 'Approved') {
+                    loggedDateMap.set(key, status);
+                }
+            }
+            }
+            
+            if (key) {
+                const status = (log.status || 'Pending').trim();
+                // Ensure "Approved" always wins if multiple logs exist for one day
+                if (loggedDateMap.get(key) !== 'Approved') {
+                    loggedDateMap.set(key, status);
+                }
+            }
+        });
 
         if (snap.empty) {
             listEl.innerHTML = '<p class="empty-text">No attendance records yet.</p>';
@@ -240,18 +274,23 @@ function listenToAttendanceLogs(uid) {
             if (log.status === 'Approved') totalApproved += hrs;
 
             if (log.timestamp?.toDate) {
-                const dte = log.timestamp.toDate();
-                const key = `${dte.getFullYear()}-${dte.getMonth()}-${dte.getDate()}`;
+                const d = log.timestamp.toDate();
+
+                // normalize to local midnight (removes UTC shift issues)
+                const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+                const key = makeDateKey(local);
+
                 const status = (log.status || 'Pending').trim();
-                const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 
-                const norm = (log.status || 'Pending').trim();
-                const fixedStatus =
-                    norm.toLowerCase() === 'approved' ? 'Approved' :
-                    norm.toLowerCase() === 'rejected' ? 'Rejected' :
-                    'Pending';
-
-                loggedDateMap.set(key, fixedStatus);
+                loggedDateMap.set(
+                    key,
+                    status.toLowerCase() === 'approved'
+                        ? 'Approved'
+                        : status.toLowerCase() === 'rejected'
+                            ? 'Rejected'
+                            : 'Pending'
+                );
             }
 
             const statusMap = {
@@ -386,25 +425,25 @@ function renderCalendar(date) {
     for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
 
     for (let i = 1; i <= daysInMonth; i++) {
-        const el = document.createElement('div');
-        el.textContent = i;
+    const el = document.createElement('div');
+    el.textContent = i;
+    
+    const key = new Date(year, month, i).toDateString();
+    const status = loggedDateMap.get(key);
 
-        const key = `${year}-${month}-${i}`;
-        const status = loggedDateMap.get(key);
 
         if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
             el.classList.add('today-circle');
         }
 
-        switch (status) {
-            case 'Approved':
-                el.classList.add('cal-approved');
-                break;
-            case 'Rejected':
-                el.classList.add('cal-rejected');
-                break;
-            default:
-                el.classList.add('cal-pending');
+        if (!status) {
+            el.classList.add('cal-empty'); // no log
+        } else if (status === 'Approved') {
+            el.classList.add('cal-approved');
+        } else if (status === 'Rejected') {
+            el.classList.add('cal-rejected');
+        } else {
+            el.classList.add('cal-pending');
         }
 
         grid.appendChild(el);
