@@ -15,7 +15,10 @@ import {
     formatTimestamp,
 } from '../js/theme.js';
 
-import { setupNotificationSystem } from '../js/notifications.js';
+import {  setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyReportApproved, notifyReportRejected, notifyAdviserFeedback, notifyLogApproved, notifyDocumentRejected  } from '../js/notifications.js';
 
 initTheme();
 
@@ -30,6 +33,7 @@ let state = {
 
 let activeBatchId = null; 
 let currentMonth = new Date();
+let studentListeners = [];
 
 // --- 2. AUTH LISTENER ---
 protectPage('supervisor').then((user) => {
@@ -101,6 +105,65 @@ async function fetchUserProfile(user) {
         }
 
         populateHeaderUser(fullName, user.email);
+    }
+}
+
+function computeHoursDecimal(tIn, tOut) {
+    if (!tIn || !tOut) return 0;
+    const parse = (t) => {
+        const [time, mod] = String(t).split(' ');
+        let [h, m] = time.split(':').map(Number);
+        if (mod === 'PM' && h < 12) h += 12;
+        if (mod === 'AM' && h === 12) h = 0;
+        return h + (m || 0) / 60;
+    };
+    const diff = parse(tOut) - parse(tIn);
+    return diff < 0 ? diff + 24 : diff;
+}
+
+function normalizeStatus(status) {
+    const s = (status || '').toString().trim().toLowerCase();
+    if (s === 'approved' || s === 'approve') return 'Approved';
+    if (s === 'rejected' || s === 'declined' || s === 'denied') return 'Rejected';
+    return 'Pending';
+}
+
+async function getStudentProgress(uid) {
+    try {
+        const userSnap = await getDoc(doc(db, "users", uid));
+        if (!userSnap.exists()) return { progress: 0, hours: 0 };
+
+        const data = userSnap.data();
+        const requiredHours = parseFloat(data.requiredHours) || 600;
+        const TOTAL_DOCS_REQUIRED = 13;
+
+        // 1. Calculate Approved Attendance Hours
+        const attSnap = await getDocs(query(collection(db, "attendance"), where("uid", "==", uid)));
+        let completedHours = 0;
+        attSnap.forEach(d => {
+            const log = d.data();
+            if (normalizeStatus(log.status) === 'Approved') {
+                completedHours += computeHoursDecimal(log.timeIn, log.timeOut);
+            }
+        });
+
+        // 2. Calculate Approved Documents
+        const docSnap = await getDocs(query(collection(db, "checklist"), where("uid", "==", uid)));
+        let approvedDocs = 0;
+        docSnap.forEach(d => {
+            if (normalizeStatus(d.data().status) === 'Approved') approvedDocs++;
+        });
+
+        const hoursPct = Math.min(100, (completedHours / requiredHours) * 100);
+        const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
+
+        return {
+            progress: Math.round((hoursPct + docsPct) / 2),
+            hours: completedHours
+        };
+    } catch (err) {
+        console.error("Progress calculation failed:", err);
+        return { progress: 0, hours: 0 };
     }
 }
 
@@ -359,15 +422,21 @@ window.openStudentModal = function(batchId, batchName) {
 
 window.closeStudentModal = function() {
     document.getElementById('studentListModal').style.display = 'none';
+
+    studentListeners.forEach(unsub => unsub());
+    studentListeners = [];
 };
 
 async function viewStudentList(batchId) {
     const listBody = document.getElementById('batchStudentList');
-    listBody.innerHTML = "<tr><td colspan='6'>Loading...</td></tr>";
+    listBody.innerHTML = "<tr><td colspan='6'>Loading students...</td></tr>";
+
+    // تنظيف previous listeners
+    studentListeners.forEach(unsub => unsub());
+    studentListeners = [];
 
     const batchSnap = await getDoc(doc(db, "batches", batchId));
-    const batchData = batchSnap.data();
-    const uids = batchData.studentUids || [];
+    const uids = batchSnap.data().studentUids || [];
 
     if (uids.length === 0) {
         listBody.innerHTML = "<tr><td colspan='6'>No students assigned.</td></tr>";
@@ -377,49 +446,76 @@ async function viewStudentList(batchId) {
     listBody.innerHTML = "";
 
     for (const uid of uids) {
-        const userSnap = await getDoc(doc(db, "users", uid));
-
-        if (!userSnap.exists()) continue;
-
-        const userData = userSnap.data();
-
-        // 🔹 fallback values (adjust later if you have real tracking)
-        const hours = userData.totalHours || 0;
-        const requiredHours = userData.requiredHours || 300;
-
-        const progress = Math.min(
-            Math.round((hours / requiredHours) * 100),
-            100
-        );
 
         const row = document.createElement('tr');
-
         row.innerHTML = `
-            <td>
-                <strong>${userData.firstName || ''} ${userData.surname || ''}</strong>
-            </td>
-
-            <td>${userData.course || '-'}</td>
-
-            <td>${userData.section || '-'}</td>
-
-            <td>${hours} hrs</td>
-
-            <td>
-                <div style="width:100px; background:#eee; border-radius:6px; overflow:hidden;">
-                    <div style="width:${progress}%; background:#4caf50; height:8px;"></div>
-                </div>
-                <small>${progress}%</small>
-            </td>
-
-            <td>
-                <button onclick="removeStudent('${uid}')" class="btn-delete-small">
-                    Remove
-                </button>
-            </td>
+            <td colspan="6">Loading...</td>
         `;
-
         listBody.appendChild(row);
+
+        // Listen to user info (optional real-time)
+        const userRef = doc(db, "users", uid);
+
+        const unsubUser = onSnapshot(userRef, async (userSnap) => {
+            if (!userSnap.exists()) return;
+
+            const userData = userSnap.data();
+
+            // Listen to attendance + checklist in real-time
+            const attQuery = query(collection(db, "attendance"), where("uid", "==", uid));
+            const docQuery = query(collection(db, "checklist"), where("uid", "==", uid));
+
+            const unsubAttendance = onSnapshot(attQuery, async (attSnap) => {
+                const unsubChecklist = onSnapshot(docQuery, async (docSnap) => {
+
+                    let completedHours = 0;
+                    let approvedDocs = 0;
+
+                    const requiredHours = parseFloat(userData.requiredHours) || 600;
+                    const TOTAL_DOCS_REQUIRED = 13;
+
+                    attSnap.forEach(d => {
+                        const log = d.data();
+                        if (normalizeStatus(log.status) === 'Approved') {
+                            completedHours += computeHoursDecimal(log.timeIn, log.timeOut);
+                        }
+                    });
+
+                    docSnap.forEach(d => {
+                        if (normalizeStatus(d.data().status) === 'Approved') {
+                            approvedDocs++;
+                        }
+                    });
+
+                    const hoursPct = Math.min(100, (completedHours / requiredHours) * 100);
+                    const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
+                    const progress = Math.round((hoursPct + docsPct) / 2);
+
+                    // Update row
+                    row.innerHTML = `
+                        <td><strong>${userData.firstName || ''} ${userData.surname || ''}</strong></td>
+                        <td>${userData.course || '-'}</td>
+                        <td>${userData.section || '-'}</td>
+                        <td>${completedHours.toFixed(1)} hrs</td>
+                        <td>
+                            <div style="width:100px; background:var(--bg-elevated); border-radius:6px; overflow:hidden; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="width:${progress}%; background:var(--brand-gold); height:8px;"></div>
+                            </div>
+                            <small>${progress}% Complete</small>
+                        </td>
+                        <td>
+                            <button onclick="removeStudent('${uid}')" class="btn-delete-small">Remove</button>
+                        </td>
+                    `;
+                });
+
+                studentListeners.push(unsubChecklist);
+            });
+
+            studentListeners.push(unsubAttendance);
+        });
+
+        studentListeners.push(unsubUser);
     }
 }
 

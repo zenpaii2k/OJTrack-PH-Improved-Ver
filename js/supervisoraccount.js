@@ -1,16 +1,3 @@
-/**
- * OJTrack PH — supervisoraccount.js
- * ─────────────────────────────────────────────────────────────
- * FIXES:
- *  1. setupThemeToggle for both buttons — WAS MISSING
- *  2. setupProfileDropdown / setupNotifDropdown — partially missing
- *  3. All students tab (students-content) now populates
- *  4. hoursCompleted field (not completedHours)
- *  5. surname field (not lastName)
- *  6. sidebar-logout-btn wired
- * ─────────────────────────────────────────────────────────────
- */
-
 import { db, auth } from "../firebase-config.js";
 import { protectPage } from "../authguard.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -22,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications} from '../js/notifications.js';
 
 initTheme();
 

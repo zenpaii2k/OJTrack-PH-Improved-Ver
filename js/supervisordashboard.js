@@ -1,16 +1,3 @@
-/**
- * OJTrack PH — supervisordashboard.js
- * ─────────────────────────────────────────────────────────────
- * FIXES:
- *  1. setupThemeToggle for BOTH buttons — WAS MISSING
- *  2. setupProfileDropdown / setupNotifDropdown — WAS MISSING
- *  3. sidebar-logout-btn wired — WAS MISSING
- *  4. Batch progress list populated (batch-progress-list element)
- *  5. attendance query uses correct fields: uid, timestamp
- *  6. getStudentName uses correct field: surname not lastName
- * ─────────────────────────────────────────────────────────────
- */
-
 import { auth, db } from "../firebase-config.js";
 import { protectPage } from "../authguard.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -22,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, formatTimestamp
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications} from '../js/notifications.js';
 
 initTheme();
 
@@ -96,9 +86,16 @@ async function initDashboard(user) {
         );
 
         onSnapshot(attendanceQ, (snapshot) => {
-            state.attendance = snapshot.docs.map(d => ({
-                id: d.id, ...d.data(), type: "attendance"
-            }));
+            state.attendance = snapshot.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    ...data,
+                    type: "attendance",
+                    status: normalizeStatus(data.status) // normalized only for logic
+                };
+            });
+
             renderRecentSubmissionsTable();
         });
 
@@ -110,13 +107,19 @@ async function initDashboard(user) {
         );
 
         onSnapshot(checklistQ, (snapshot) => {
-            state.documents = snapshot.docs.map(d => ({
-                id: d.id, ...d.data(), type: "document"
-            }));
+            state.documents = snapshot.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    ...data,
+                    type: "document",
+                    status: normalizeStatus(data.status)
+                };
+            });
+
             renderRecentSubmissionsTable();
         });
 
-        // ✅ NEW: Populate batch progress list
         renderBatchProgress(user.uid);
 
     } catch (e) {
@@ -144,17 +147,16 @@ async function updateTotalStats(user) {
             checkSnap.forEach(d => {
                 const data = d.data();
                 if (uniqueStudents.has(data.uid) &&
-                    (data.status === "Pending" || data.status === "Pending Approval")) {
+                    normalizeStatus(data.status) === "Pending") {
                     pendingReports++;
                 }
             });
-
-            // ✅ FIX: attendance uses 'uid' not 'userId'
+            
             const logSnap = await getDocs(collection(db, "attendance"));
             logSnap.forEach(d => {
                 const data = d.data();
                 if (uniqueStudents.has(data.uid) &&
-                    (data.status === "pending" || !data.status)) {
+                    (normalizeStatus(data.status) === "Pending")) {
                     pendingLogs++;
                 }
             });
@@ -173,13 +175,12 @@ async function updateTotalStats(user) {
 }
 
 // ─── BATCH PROGRESS LIST ──────────────────────────────────────
-// ✅ NEW: Populates the batch-progress-list element in supervisordashboard.html
 async function renderBatchProgress(supervisorUid) {
     const container = document.getElementById('batch-progress-list');
     if (!container) return;
 
     try {
-        const q    = query(collection(db, "batches"), where("supervisorId", "==", supervisorUid));
+        const q = query(collection(db, "batches"), where("supervisorId", "==", supervisorUid));
         const snap = await getDocs(q);
 
         if (snap.empty) {
@@ -188,28 +189,47 @@ async function renderBatchProgress(supervisorUid) {
         }
 
         container.innerHTML = '';
+        const TOTAL_DOCS_REQUIRED = 13;
 
         for (const batchDoc of snap.docs) {
-            const batch    = batchDoc.data();
+            const batch = batchDoc.data();
             const students = Array.isArray(batch.studentUids) ? batch.studentUids : [];
             if (students.length === 0) continue;
 
-            // Calculate average completion for this batch
-            let totalPct = 0;
-            let counted  = 0;
+            let totalBatchPct = 0;
+            let studentCount = 0;
 
             for (const uid of students) {
                 const uSnap = await getDoc(doc(db, "users", uid));
-                if (uSnap.exists()) {
-                    const uData    = uSnap.data();
-                    const required = parseFloat(uData.requiredHours) || 600;
-                    const completed = parseFloat(uData.hoursCompleted) || 0;
-                    totalPct += required > 0 ? Math.min(100, (completed / required) * 100) : 0;
-                    counted++;
-                }
+                if (!uSnap.exists()) continue;
+
+                const uData = uSnap.data();
+                const required = parseFloat(uData.requiredHours) || 600;
+
+                // 1. Calculate Approved Hours (Case-insensitive 'approved')
+                const attSnap = await getDocs(query(collection(db, "attendance"), where("uid", "==", uid)));
+                let completedHrs = 0;
+                attSnap.forEach(d => {
+                    const log = d.data();
+                    if ((log.status || '').toLowerCase() === 'approved') {
+                        completedHrs += computeHoursDecimal(log.timeIn, log.timeOut);
+                    }
+                });
+                const hoursPct = Math.min(100, (completedHrs / required) * 100);
+
+                // 2. Calculate Approved Docs (Strict 'Approved')
+                const checkSnap = await getDocs(query(collection(db, "checklist"), where("uid", "==", uid)));
+                let approvedDocs = 0;
+                checkSnap.forEach(d => {
+                    if (d.data().status === 'Approved') approvedDocs++;
+                });
+                const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
+
+                totalBatchPct += (hoursPct + docsPct) / 2;
+                studentCount++;
             }
 
-            const avgPct = counted > 0 ? Math.round(totalPct / counted) : 0;
+            const avgPct = studentCount > 0 ? Math.round(totalBatchPct / studentCount) : 0;
 
             const row = document.createElement('div');
             row.className = 'batch-progress-row';
@@ -222,7 +242,6 @@ async function renderBatchProgress(supervisorUid) {
                 <div class="batch-pct">${avgPct}%</div>`;
             container.appendChild(row);
         }
-
     } catch (e) {
         console.error('[SupDash] renderBatchProgress:', e);
         container.innerHTML = '<p class="empty-text">Could not load batch data.</p>';
@@ -234,9 +253,12 @@ async function renderRecentSubmissionsTable() {
     const tbody = document.getElementById('recent-submissions-body');
     if (!tbody) return;
 
+    // Filter by student UIDs and exclude Rejected (keeping Pending/Approved)
     const items = [...state.attendance, ...state.documents]
-        // ✅ FIX: attendance uses 'uid' field
-        .filter(item => state.myStudentUids.has(item.uid))
+        .filter(item =>
+            state.myStudentUids.has(item.uid) &&
+            normalizeStatus(item.status) !== 'Rejected'
+        )
         .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
         .slice(0, 8);
 
@@ -248,19 +270,17 @@ async function renderRecentSubmissionsTable() {
     const rows = await Promise.all(items.map(async (item) => {
         const name = await getStudentName(item.uid);
         const isLog = item.type === 'attendance';
-
         const batch = await getStudentBatch(item.uid);
-        const hours = isLog
-            ? computeHoursDisplay(item.timeIn, item.timeOut)
-            : '—';
-
+        const hours = isLog ? computeHoursDisplay(item.timeIn, item.timeOut) : '—';
+        
+        // Use the new dynamic progress function for the table row
         const pct = await getStudentProgress(item.uid);
 
         const statusBadge = isLog
             ? `<span class="badge badge-success">Logged ${item.timeIn || '—'}</span>`
             : `<span class="badge badge-info">Uploaded ${sanitizeText((item.formKey || '').toUpperCase())}</span>`;
 
-        const link     = isLog ? "checkstudentdatabase.html" : "checkstudentreq.html";
+        const link = isLog ? "checkstudentdatabase.html" : "checkstudentreq.html";
         const linkText = isLog ? "Review Logs" : "Review Docs";
 
         return `<tr>
@@ -292,13 +312,38 @@ async function getStudentBatch(uid) {
 
 async function getStudentProgress(uid) {
     try {
-        const snap = await getDoc(doc(db, "users", uid));
-        if (!snap.exists()) return 0;
-        const d = snap.data();
-        const req = parseFloat(d.requiredHours)  || 600;
-        const com = parseFloat(d.hoursCompleted) || 0;
-        return Math.min(100, Math.round((com / req) * 100));
-    } catch { return 0; }
+        const uSnap = await getDoc(doc(db, "users", uid));
+        if (!uSnap.exists()) return 0;
+        
+        const data = uSnap.data();
+        const required = parseFloat(data.requiredHours) || 600;
+        const TOTAL_DOCS_REQUIRED = 13;
+
+        // Fetch logs
+        const attSnap = await getDocs(query(collection(db, "attendance"), where("uid", "==", uid)));
+        let completedHrs = 0;
+        attSnap.forEach(d => {
+            const log = d.data();
+            if ((log.status || '').toLowerCase() === 'approved') {
+                completedHrs += computeHoursDecimal(log.timeIn, log.timeOut);
+            }
+        });
+
+        // Fetch docs
+        const checkSnap = await getDocs(query(collection(db, "checklist"), where("uid", "==", uid)));
+        let approvedDocs = 0;
+        checkSnap.forEach(d => {
+            if (d.data().status === 'Approved') approvedDocs++;
+        });
+
+        const hrsPct = Math.min(100, (completedHrs / required) * 100);
+        const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
+
+        return Math.round((hrsPct + docsPct) / 2);
+    } catch (e) {
+        console.error("Progress calc error:", e);
+        return 0;
+    }
 }
 
 async function getStudentName(uid) {
@@ -308,7 +353,7 @@ async function getStudentName(uid) {
         let name = "Unknown Student";
         if (snap.exists()) {
             const d = snap.data();
-            // ✅ FIX: schema uses 'surname' not 'lastName'
+
             name = d.name || `${d.firstName || ''} ${d.surname || ''}`.trim() || "Student";
         }
         nameCache[uid] = name;
@@ -379,4 +424,20 @@ function computeHoursDecimal(tIn, tOut) {
 function computeHoursDisplay(tIn, tOut) {
     const h = computeHoursDecimal(tIn, tOut);
     return h > 0 ? `${h.toFixed(1)}h` : '—';
+}
+
+function normalizeStatus(status) {
+    const s = (status || '').toString().trim();
+
+    const lower = s.toLowerCase();
+
+    if (lower === 'approved' || lower === 'approve') return 'Approved';
+    if (lower === 'pending' || lower === 'pending approval' || lower === 'for approval' || lower === '') return 'Pending';
+    if (lower === 'rejected' || lower === 'declined' || lower === 'denied') return 'Rejected';
+
+    return s; 
+}
+
+function isApproved(status) {
+    return normalizeStatus(status) === 'Approved';
 }

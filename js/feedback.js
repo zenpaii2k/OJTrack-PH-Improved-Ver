@@ -8,7 +8,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, relativeTime, formatTimestamp
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications} from '../js/notifications.js';
 
 initTheme();
 

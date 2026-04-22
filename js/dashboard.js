@@ -1,17 +1,3 @@
-/**
- * OJTrack PH — dashboard.js
- * ─────────────────────────────────────────────────────────────
- * FIXES IN THIS VERSION:
- *  1. attendance: where('uid') not where('userId')
- *  2. attendance: orderBy('timestamp') not orderBy('createdAt')
- *  3. attendance: log.displayDate not log.date; log.attachment not log.attachmentUrl
- *  4. users: data.hoursCompleted not data.completedHours
- *  5. users: data.timeStart/timeEnd not data.shiftStart/shiftEnd
- *  6. users: data.surname not data.lastName (for name building)
- *  7. Feedback: orderBy('timestamp') matches the write in checkstudentdatabase.js
- * ─────────────────────────────────────────────────────────────
- */
-
 import { auth, db } from '../firebase-config.js';
 import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
@@ -23,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, formatTimestamp,
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications} from '../js/notifications.js';
 
 // ─── INIT ────────────────────────────────────────────────────
 initTheme();

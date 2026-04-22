@@ -13,7 +13,10 @@ import {
     sanitizeText,
     formatTimestamp,
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import {  setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyAdviserFeedback, notifyLogApproved, notifyLogRejected} from '../js/notifications.js';
 
 initTheme();
 
@@ -374,11 +377,11 @@ async function viewStudentDetails(docId, studentData) {
 
                         <div class="log-actions" style="display:flex; flex-direction:column; gap:8px;">
                             ${!isLocked ? `
-                                <button onclick="confirmLogAction('${logId}', 'Approved')" 
+                                <button onclick="confirmLogAction('${logId}', 'Approved', '${activeStudentUid}', '${log.displayDate}')"
                                     style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
                                     Approve
                                 </button>
-                                <button onclick="confirmLogAction('${logId}', 'Rejected')" 
+                                <button onclick="confirmLogAction('${logId}', 'Rejected', '${activeStudentUid}', '${log.displayDate}')" 
                                     style="background:#e74c3c; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
                                     Reject
                                 </button>
@@ -485,17 +488,17 @@ function renderCalendar(date) {
     }
 }
 
-window.confirmLogAction = async (logId, status) => {
-    if(confirm(`Are you sure you want to mark this log as ${status}? This action cannot be undone.`)) {
-        await updateLogStatus(logId, status);
+window.confirmLogAction = async (logId, status, studentUid, date) => {
+    if (confirm(`Are you sure you want to mark this log as ${status}? This action cannot be undone.`)) {
+        await updateLogStatus(logId, status, studentUid, date);
     }
 };
 
-window.updateLogStatus = async (logId, newStatus) => {
+window.updateLogStatus = async (logId, newStatus, studentUid, date) => {
     try {
         const logRef = doc(db, "attendance", logId);
-        // Only allow update if current state in DB is pending (extra security)
         const docSnap = await getDoc(logRef);
+
         if (docSnap.exists() && docSnap.data().status && docSnap.data().status !== "Pending") {
             alert("This log has already been processed and cannot be changed.");
             return;
@@ -505,6 +508,17 @@ window.updateLogStatus = async (logId, newStatus) => {
             status: newStatus,
             reviewedAt: serverTimestamp() 
         });
+
+        const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const uData = userSnap.data() || {};
+
+        const adviserName =
+            uData.name ||
+            `${uData.firstName || ''} ${uData.surname || ''}`.trim() ||
+            "Adviser";
+
+        await handleLogDecision(studentUid, date, adviserName, newStatus);
+
     } catch (e) {
         alert("Error updating status: " + e.message);
     }
@@ -514,6 +528,7 @@ const saveRemarksBtn = document.getElementById('save-remarks-btn');
 if (saveRemarksBtn) {
     saveRemarksBtn.onclick = async () => {
         const text = document.getElementById('student-remarks').value;
+
         if (!activeStudentUid) return alert("No student selected.");
         if (!text.trim()) return alert("Please enter remarks first.");
 
@@ -522,18 +537,43 @@ if (saveRemarksBtn) {
             const userSnap = await getDoc(userRef);
             const sData = userSnap.data() || {};
 
+            const adviserName =
+                sData.name ||
+                `${sData.firstName || ''} ${sData.surname || ''}`.trim() ||
+                "Adviser";
+
             await addDoc(collection(db, "students", activeStudentUid, "feedback"), {
-                senderName: sData.name || "Adviser",
+                senderName: adviserName,
                 senderRole: sData.position || "OJT Adviser",
                 message: text,
                 subject: "Adviser Evaluation",
                 timestamp: serverTimestamp()
             });
-            
+
+            await notifyAdviserFeedback(activeStudentUid, adviserName);
+
             alert("Feedback sent successfully!");
             document.getElementById('student-remarks').value = "";
+
         } catch (e) {
+            console.error(e);
             alert("Error: " + e.message);
         }
     };
 }
+
+async function handleLogDecision(studentUid, date, adviserName, decision, reason = "") {
+    try {
+        if (decision === "Approved") {
+            await notifyLogApproved(studentUid, date, adviserName);
+        }
+
+        if (decision === "Rejected") {
+            await notifyLogRejected(studentUid, date, adviserName, reason);
+        }
+    } catch (e) {
+        console.error("Notification error:", e);
+    }
+}
+
+

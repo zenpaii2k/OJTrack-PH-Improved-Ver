@@ -49,6 +49,7 @@ import {
     writeBatch,
     serverTimestamp,
     getDocs,
+    deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 import { relativeTime, sanitizeText } from './theme.js';
@@ -96,10 +97,43 @@ export function setupNotificationSystem(userId) {
         console.error('[Notifications] Listener error:', err);
     });
 
-    // Wire up "Clear All" button
-    const clearBtn = document.getElementById('clear-all-notifs');
+    const markAllBtn = document.getElementById('mark-all-read');
+    const clearBtn   = document.getElementById('clear-all-notifs');
+
+    if (markAllBtn) {
+        markAllBtn.addEventListener('click', () => markAllRead(userId));
+    }
+
     if (clearBtn) {
-        clearBtn.addEventListener('click', () => markAllRead(userId));
+        clearBtn.addEventListener('click', async () => {
+            const ok = confirm("Delete all notifications? This cannot be undone.");
+            if (!ok) return;
+
+            await clearAllNotifications(userId);
+        });
+    } 
+}
+
+export async function clearAllNotifications(userId) {
+    if (!userId) return;
+
+    try {
+        const q = query(
+            collection(db, COLLECTION),
+            where('recipientUid', '==', userId),
+        );
+
+        const snap = await getDocs(q);
+
+        const batch = writeBatch(db);
+
+        snap.docs.forEach(d => {
+            batch.delete(d.ref);
+        });
+
+        await batch.commit();
+    } catch (e) {
+        console.error('[Notifications] clearAllNotifications error:', e);
     }
 }
 
@@ -224,6 +258,7 @@ export async function markAllRead(userId) {
  * @param {string} [params.relatedUrl]
  * @returns {Promise<string>} The new notification document ID
  */
+
 export async function sendNotification({
     recipientUid,
     title,
@@ -322,5 +357,98 @@ export function notifySystem(recipientUid, title, body) {
         body,
         type: 'system',
         category: 'general',
+    });
+}
+
+/**
+ * Student submitted attendance log → notify adviser
+ */
+export function notifyLogSubmittedToAdviser(adviserUid, studentName, date) {
+    return sendNotification({
+        recipientUid: adviserUid,
+        title: 'New Attendance Log Submitted 📄',
+        body: `${studentName} submitted a log for ${date}.`,
+        type: 'system',
+        category: 'attendance',
+        senderName: studentName,
+        relatedUrl: '/supervisor/checkstudentdatabase.html',
+    });
+}
+
+/**
+ * Student submitted document → notify adviser
+ */
+export function notifyDocumentSubmittedToAdviser(adviserUid, studentName, docName) {
+    return sendNotification({
+        recipientUid: adviserUid,
+        title: 'New Document Submitted 📎',
+        body: `${studentName} submitted "${docName}".`,
+        type: 'message',
+        category: 'documents',
+        senderName: studentName,
+        relatedUrl: '/supervisor/checkstudentreq.html',
+    });
+}
+
+/**
+ * Student submitted full report → notify adviser
+ */
+export function notifyReportSubmitted(adviserUid, studentName) {
+    return sendNotification({
+        recipientUid: adviserUid,
+        title: 'OJT Report Submitted 📘',
+        body: `${studentName} submitted their OJT report for review.`,
+        type: 'alert',
+        category: 'reports',
+        senderName: studentName,
+        relatedUrl: '/supervisor/checkstudentreports.html',
+    });
+}
+
+export function notifyReportApproved(studentUid, adviserName) {
+    return sendNotification({
+        recipientUid: studentUid,
+        title: 'OJT Report Approved 🎉',
+        body: `${adviserName} approved your OJT report.`,
+        type: 'approval',
+        category: 'reports',
+        senderName: adviserName,
+        relatedUrl: '/student/generatepdf.html',
+    });
+}
+
+export function notifyReportRejected(studentUid, adviserName, reason = '') {
+    return sendNotification({
+        recipientUid: studentUid,
+        title: 'OJT Report Rejected ❌',
+        body: `Your report needs revision.${reason ? ' Reason: ' + reason : ''}`,
+        type: 'alert',
+        category: 'reports',
+        senderName: adviserName,
+        relatedUrl: '/student/generatepdf.html',
+    });
+}
+
+export function notifyDocumentApproved(studentUid, docName, adviserName) {
+    return sendNotification({
+        recipientUid: studentUid,
+        title: 'Document Approved ✅',
+        body: `${docName} was approved by ${adviserName}.`,
+        type: 'approval',
+        category: 'documents',
+        senderName: adviserName,
+        relatedUrl: '/student/checklist.html',
+    });
+}
+
+export function notifyDocumentRejected(studentUid, docName, adviserName, reason = '') {
+    return sendNotification({
+        recipientUid: studentUid,
+        title: 'Document Rejected ⚠️',
+        body: `${docName} needs revision.${reason ? ' Reason: ' + reason : ''}`,
+        type: 'alert',
+        category: 'documents',
+        senderName: adviserName,
+        relatedUrl: '/student/checklist.html',
     });
 }

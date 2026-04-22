@@ -1,7 +1,7 @@
 import { protectPage } from "../authguard.js";
 import { db, auth } from "../firebase-config.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, query, where, getDocs, doc, updateDoc, getDoc} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, query, where, getDocs, doc, updateDoc, getDoc, onSnapshot} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     initTheme,
     setupThemeToggle,
@@ -12,7 +12,10 @@ import {
     formatTimestamp,
 } from '../js/theme.js';
 
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyDocumentApproved, notifyDocumentRejected} from '../js/notifications.js';
 import '/js/ui-bootstrap.js';
 
 initTheme();
@@ -34,7 +37,10 @@ onAuthStateChanged(auth, async (user) => {
 
 let currentDocId = null;
 let currentDocStatus = null;
-let allStudents = []; // Store all interns locally for filtering
+let allStudents = []; 
+let unsubscribeChecklist = null;
+let currentStudentUid = null;
+let currentFormKey = null;
 
 async function updateTotalStats(user) {
     try {
@@ -187,12 +193,14 @@ document.getElementById('student-search').oninput = handleFilters;
  * Existing Document Logic
  */
 function selectStudent(studentId, name, batchName) {
+    currentStudentUid = studentId; 
     document.getElementById('display-name').innerText = name;
     document.getElementById('display-section').innerText = batchName;
     
     const checklistQuery = query(collection(db, "checklist"), where("uid", "==", studentId));
     
-    onSnapshot(checklistQuery, (snapshot) => {
+    if (unsubscribeChecklist) unsubscribeChecklist();
+     unsubscribeChecklist = onSnapshot(checklistQuery, (snapshot) => {
         const tbody = document.getElementById('verification-tbody');
         const countDisplay = document.getElementById('completion-count');
         tbody.innerHTML = "";
@@ -206,19 +214,25 @@ function selectStudent(studentId, name, batchName) {
             const isApproved = data.status === "Approved";
             const isRejected = data.status === "Rejected";
 
-                        row.innerHTML = `
-                            <td><strong>${data.formKey.toUpperCase()}</strong></td>
-                            <td>${data.dateSubmitted}</td>
-                            <td>
-                                <button class="btn-link" 
-                                    onclick="openReviewModal('${logDoc.id}', '${data.fileData}', '${data.status}', '${data.fileName || 'No File Name'}')"
-                                    ${isRejected ? 'style="color:#888; border-color:#444;"' : ''}>
-                                    ${isApproved ? 'View Final' : (isRejected ? 'Await Re-upload' : 'View & Review')}
-                                </button>
-                            </td>
-                            <td><span class="status-badge ${data.status.toLowerCase().replace(/\s/g, '-')}">${data.status}</span></td>
-                            <td>---</td>
-                        `;
+            let buttonClass = "btn-link ";
+
+            if (isApproved) buttonClass += "btn-approved";
+            else if (isRejected) buttonClass += "btn-rejected";
+            else buttonClass += "btn-pending";
+
+                row.innerHTML = `
+                    <td><strong>${data.formKey.toUpperCase()}</strong></td>
+                    <td>${data.dateSubmitted}</td>
+                    <td>
+                        <button class="${buttonClass}"
+                           onclick="openReviewModal('${logDoc.id}', '${data.fileData}', '${data.status}', '${data.fileName || 'No File Name'}', '${data.formKey}')"
+                            ${isRejected ? 'disabled' : ''}>
+                            ${isApproved ? 'View Final' : (isRejected ? 'Await Re-upload' : 'View & Review')}
+                        </button>
+                    </td>
+                    <td><span class="status-badge ${data.status.toLowerCase().replace(/\s/g, '-')}">${data.status}</span></td>
+                    <td>---</td>
+                `;
             tbody.appendChild(row);
         });
         countDisplay.innerText = `${approvedCount}/13`;
@@ -227,9 +241,10 @@ function selectStudent(studentId, name, batchName) {
 
 // Review and Feedback Modal Logic (Kept from previous version)
 
-window.openReviewModal = (docId, fileData, status, fileName) => {
+window.openReviewModal = (docId, fileData, status, fileName, formKey) => {
     currentDocId = docId;
     currentDocStatus = status;
+    currentFormKey = formKey;
    
     const modal = document.getElementById('feedbackModal');
     const approveBtn = document.getElementById('btn-approve');
@@ -287,14 +302,14 @@ window.closeReviewModal = () => {
 };
 
 window.submitFeedback = async (status) => {
-    // Hard block: Prevent approving if the current status is rejected and we are trying to approve
     if (status === "Approved" && (currentDocStatus === "Rejected" || currentDocStatus === "Not Submitted")) {
         return alert("You cannot approve a document that has been rejected or hasn't been re-uploaded.");
     }
 
     if (currentDocStatus === "Approved") return alert("Document is already finalized.");
-    
+
     const remarks = document.getElementById('supervisorRemarks').value;
+
     if (!remarks && status === "Rejected") return alert("Please provide a reason for rejection.");
     if (!remarks && status === "Approved") return alert("Please provide a reason for approval.");
 
@@ -306,13 +321,31 @@ window.submitFeedback = async (status) => {
         };
 
         if (status === "Rejected") {
-            updateData.fileData = null; 
+            updateData.fileData = null;
             updateData.dateSubmitted = "Waiting for Re-upload";
         }
 
+        // ✅ update checklist first
         await updateDoc(doc(db, "checklist", currentDocId), updateData);
+
+        // ─── NOTIFICATIONS ─────────────────────────────
+        const adviserName =
+            auth.currentUser?.displayName || "Adviser";
+
+        const studentUid = currentStudentUid; // make sure this is defined globally
+        const docName = currentFormKey || "Document"; // adjust if you store formKey
+
+        if (status === "Approved") {
+            await notifyDocumentApproved(studentUid, docName, adviserName);
+        }
+
+        if (status === "Rejected") {
+            await notifyDocumentRejected(studentUid, docName, adviserName, remarks);
+        }
+
         alert(`Document has been ${status}.`);
         closeReviewModal();
+
     } catch (e) {
         console.error("Update Error:", e);
         alert("Error updating document.");

@@ -1,15 +1,3 @@
-/**
- * OJTrack PH — checklist.js
- * ─────────────────────────────────────────────────────────────
- * FIXES:
- *  1. setupThemeToggle('sidebar-theme-btn') and ('theme-toggle-btn') — WAS MISSING
- *  2. setupProfileDropdown() and setupNotifDropdown() — WAS MISSING
- *  3. logout wired for both buttons — WAS MISSING
- *  4. Using shared populateHeaderUser (safer)
- *  5. Preserved all original checklist logic (upload, preview, etc.)
- * ─────────────────────────────────────────────────────────────
- */
-
 import { auth, db } from "../firebase-config.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { protectPage } from "../authguard.js";
@@ -21,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import {  setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyDocumentSubmittedToAdviser} from '../js/notifications.js';
 
 // ─── INIT THEME ───────────────────────────────────────────────
 initTheme();
@@ -224,54 +215,106 @@ window.processUpload = async () => {
     if (!fileInput.files[0]) return alert("Please select a file!");
     if (!user) return alert("Not authenticated.");
 
-    // Security: verify status before allowing upload
     const existingDoc = currentStudentDocs[selectedForm];
     if (existingDoc && (existingDoc.status === "Pending Approval" || existingDoc.status === "Approved")) {
         alert("This document is already under review or approved.");
         return;
     }
 
-    // File size check (5MB limit for base64 in Firestore)
     if (fileInput.files[0].size > 5 * 1024 * 1024) {
-        alert("File too large. Please upload a file under 5MB.");
-        return;
+        return alert("File too large. Max 5MB.");
     }
 
     const btn = document.querySelector('.btn-primary');
-    if (btn) { btn.disabled = true; btn.innerText = "Uploading…"; }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Uploading…";
+    }
 
     try {
-        const reader = new FileReader();
-        reader.readAsDataURL(fileInput.files[0]);
-        reader.onload = async () => {
-            const base64File = reader.result;
-            const fileName   = fileInput.files[0].name;
-            const dateStr    = new Date().toLocaleDateString('en-US', {
-                month: 'short', day: '2-digit', year: 'numeric'
-            });
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+            const userData = userSnap.data();
 
-            // ✅ Use schema-correct fields for checklist
-            await setDoc(doc(db, "checklist", `${user.uid}_${selectedForm}`), {
-                uid:           user.uid,
-                studentName:   auth.currentUser.displayName || "Student",
-                formKey:       selectedForm,
-                fileData:      base64File,
-                fileName:      fileName,
-                dateSubmitted: dateStr,
-                status:        "Pending Approval",
-                remarks:       "Waiting for review",
-                timestamp:     serverTimestamp(),
-                dismissedBy:   [],
-            });
+            console.log("USER DATA:", userData);
 
-            alert("File submitted successfully!");
-            document.getElementById('uploadModal').style.display = 'none';
-            fileInput.value = '';
-        };
+            const batchId = userData?.batch;
+            console.log("BATCH ID:", batchId);
+
+            if (!batchId) {
+                console.warn("No batchId found in user document");
+                return;
+            }
+
+            const batchRef = doc(db, "batches", batchId);
+            const batchSnap = await getDoc(batchRef);
+
+            if (!batchSnap.exists()) {
+                console.warn("Batch document not found:", batchId);
+                return;
+            }
+
+            const batchData = batchSnap.data();
+            console.log("BATCH DATA:", batchData);
+
+            const adviserUid =
+                batchData?.supervisorId ||
+                batchData?.adviserId ||
+                batchData?.teacherId ||
+                null;
+
+            console.log("ADVISER UID FINAL:", adviserUid);
+
+        const studentName =
+            userData?.name ||
+            `${userData?.firstName || ''} ${userData?.surname || ''}`.trim() ||
+            "Student";
+
+        const file = fileInput.files[0];
+
+        const base64File = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+        const fileName = file.name;
+        const dateStr  = new Date().toLocaleDateString('en-US', {
+            month: 'short', day: '2-digit', year: 'numeric'
+        });
+
+        await setDoc(doc(db, "checklist", `${user.uid}_${selectedForm}`), {
+            uid: user.uid,
+            studentName,
+            formKey: selectedForm,
+            fileData: base64File,
+            fileName,
+            dateSubmitted: dateStr,
+            status: "Pending Approval",
+            remarks: "Waiting for review",
+            timestamp: serverTimestamp(),
+            dismissedBy: [],
+        });
+
+        if (adviserUid) {
+            await notifyDocumentSubmittedToAdviser(
+                adviserUid,
+                studentName,
+                selectedForm
+            );
+        }
+
+        alert("File submitted successfully!");
+        document.getElementById('uploadModal').style.display = 'none';
+        fileInput.value = '';
+
     } catch (err) {
         console.error('[Checklist] Upload failed:', err);
         alert("Upload failed: " + err.message);
     } finally {
-        if (btn) { btn.disabled = false; btn.innerText = "Submit File"; }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "Submit File";
+        }
     }
 };

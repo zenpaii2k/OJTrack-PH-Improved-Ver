@@ -9,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, formatTimestamp
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyLogSubmittedToAdviser} from '../js/notifications.js';
 
 // ─── INIT ────────────────────────────────────────────────────
 initTheme();
@@ -163,42 +166,94 @@ function setupForm(user) {
 
         const note  = sanitizeStr(document.getElementById('attendance-note')?.value || '');
         const today = new Date();
-        // ✅ Correct fields per schema
         const displayDate = new Date().toDateString();
 
         const btn = document.getElementById('submit-log-btn');
         if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
 
-        try {
+       try {
+           const userSnap = await getDoc(doc(db, "users", user.uid));
+            const userData = userSnap.data();
+
+            console.log("USER DATA:", userData);
+
+            const batchId = userData?.batch;
+            console.log("BATCH ID:", batchId);
+
+            if (!batchId) {
+                console.warn("No batchId found in user document");
+                return;
+            }
+
+            const batchRef = doc(db, "batches", batchId);
+            const batchSnap = await getDoc(batchRef);
+
+            if (!batchSnap.exists()) {
+                console.warn("Batch document not found:", batchId);
+                return;
+            }
+
+            const batchData = batchSnap.data();
+            console.log("BATCH DATA:", batchData);
+
+            const adviserUid =
+                batchData?.supervisorId ||
+                batchData?.adviserId ||
+                batchData?.teacherId ||
+                null;
+
+            console.log("ADVISER UID FINAL:", adviserUid);
+
+            const studentName =
+                userData?.name ||
+                `${userData?.firstName || ''} ${userData?.surname || ''}`.trim() ||
+                "Student";
+
             let attachment = null;
             const fileInput = document.getElementById('attendance-file');
+
             if (fileInput?.files[0]) {
                 attachment = await fileToBase64(fileInput.files[0]);
             }
 
+            // ✅ Save attendance log
             await addDoc(collection(db, 'attendance'), {
-                uid:         user.uid,       
-                displayDate: displayDate,    
-                timeIn:      tIn,
-                timeOut:     tOut,
-                note:        note,
-                attachment:  attachment,        
-                status:      'Pending',
-                timestamp:   serverTimestamp(), 
+                uid: user.uid,
+                displayDate,
+                timeIn: tIn,
+                timeOut: tOut,
+                note,
+                attachment,
+                status: 'Pending',
+                timestamp: serverTimestamp(),
                 dismissedBy: [],
             });
 
+            if (adviserUid) {
+                await notifyLogSubmittedToAdviser(
+                    adviserUid,
+                    studentName,
+                    displayDate
+                );
+            }
+
             form.reset();
-            const fileText = document.getElementById('file-name-text');
-            if (fileText) fileText.textContent = 'Click to choose file — JPG, PNG, PDF, DOCX';
-            const preview = document.getElementById('hours-preview');
-            if (preview) preview.style.display = 'none';
+
+            document.getElementById('file-name-text') &&
+                (document.getElementById('file-name-text').textContent =
+                    'Click to choose file — JPG, PNG, PDF, DOCX');
+
+            document.getElementById('hours-preview') &&
+                (document.getElementById('hours-preview').style.display = 'none');
 
         } catch (err) {
             console.error('[Attendance] submit error:', err);
             showError('Failed to submit. Please try again.');
         } finally {
-            if (btn) { btn.disabled = false; btn.textContent = '🕒 Submit Attendance Log'; }
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '🕒 Submit Attendance Log';
+            }
         }
     });
 }
@@ -229,25 +284,19 @@ function listenToAttendanceLogs(uid) {
 
         snap.docs.forEach(d => {
             const log = d.data();
-            let key;
+            let dateObj = null;
 
             if (log.timestamp) {
-                // If server timestamp exists, use it
-                key = makeDateKey(log.timestamp.toDate());
+                dateObj = log.timestamp.toDate();
             } else if (log.displayDate) {
-                if (log.displayDate) {
-                const key = new Date(log.displayDate).toDateString();
+                dateObj = new Date(log.displayDate);
+            }
+
+            if (dateObj) {
+
+                const key = dateObj.toDateString();
                 const status = (log.status || 'Pending').trim();
 
-                if (loggedDateMap.get(key) !== 'Approved') {
-                    loggedDateMap.set(key, status);
-                }
-            }
-            }
-            
-            if (key) {
-                const status = (log.status || 'Pending').trim();
-                // Ensure "Approved" always wins if multiple logs exist for one day
                 if (loggedDateMap.get(key) !== 'Approved') {
                     loggedDateMap.set(key, status);
                 }

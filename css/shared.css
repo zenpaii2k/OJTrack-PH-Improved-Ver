@@ -379,6 +379,15 @@ body {
 
 .clear-btn:hover { background: var(--brand-gold-dim); }
 
+.clear-btn.danger {
+    background: #ff4d4d;
+    color: white;
+}
+
+.clear-btn.danger:hover {
+    background: #e60000;
+}
+
 .notif-scroll-area {
   max-height: 300px;
   overflow-y: auto;

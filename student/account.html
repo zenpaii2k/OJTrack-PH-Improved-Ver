@@ -61,7 +61,16 @@
                     <div id="notif-modal" class="notif-dropdown" role="dialog" aria-label="Notification list">
                         <div class="notif-header">
                             <span>Notifications</span>
-                            <button id="clear-all-notifs" class="clear-btn">Mark all read</button>
+
+                            <div style="display:flex; gap:8px;">
+                                <button id="mark-all-read" class="clear-btn">
+                                    Mark all read
+                                </button>
+
+                                <button id="clear-all-notifs" class="clear-btn danger">
+                                    Clear all
+                                </button>
+                            </div>
                         </div>
                         <div id="notif-list" class="notif-scroll-area">
                             <div class="notif-empty">No new notifications.</div>

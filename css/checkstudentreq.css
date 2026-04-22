@@ -311,6 +311,42 @@
 
 .btn-ghost:hover { background: var(--border); }
 
+.btn-link {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #2ecc71;
+    background: transparent;
+    color: #2ecc71;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-link:hover {
+    background: #2ecc71;
+    color: #fff;
+}
+
+/* APPROVED */
+.btn-approved {
+    border-color: #2ecc71;
+    color: #2ecc71;
+}
+
+/* REJECTED */
+.btn-rejected {
+    border-color: #e74c3c;
+    color: #e74c3c;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* PENDING */
+.btn-pending {
+    border-color: #f1c40f;
+    color: var(--text-primary);
+}
+
 /* ─── RESPONSIVE ─────────────────────────────────────────────── */
 @media (max-width: 900px) {
     .main-content-wrapper {

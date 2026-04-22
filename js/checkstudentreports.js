@@ -2,14 +2,17 @@ import { protectPage } from "../authguard.js";
 import { db, auth } from "../firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import {
-    collection, query, where, getDocs, getDoc, doc,
+    collection, query, where, getDocs, getDoc, doc, addDoc,
     updateDoc, serverTimestamp, orderBy, limit, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, formatTimestamp
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import {  setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyAdviserFeedback, notifyReportApproved, notifyReportRejected} from '../js/notifications.js';
 
 initTheme();
 
@@ -121,41 +124,45 @@ async function loadStudentsFromBatch(batchId) {
 
         const studentUids = snap.data().studentUids || [];
 
-        const countEl = document.getElementById('student-count');
-        if (countEl) {
-            countEl.textContent = studentUids.length;
-        }
+        document.getElementById('student-count').textContent = studentUids.length;
 
         if (studentUids.length === 0) {
             studentList.innerHTML = '<p class="empty-text">No students in this batch.</p>';
             return;
         }
 
+        const userPromises = studentUids.map(uid => getDoc(doc(db, "users", uid)));
+        const reportPromises = studentUids.map(uid =>
+            getDocs(query(
+                collection(db, "reports"),
+                where("studentUid", "==", uid),
+                orderBy("submittedAt", "desc"),
+                limit(1)
+            ))
+        );
+
+        const userSnaps = await Promise.all(userPromises);
+        const reportSnaps = await Promise.all(reportPromises);
+
         studentList.innerHTML = '';
 
-        for (const uid of studentUids) {
-            const uSnap = await getDoc(doc(db, "users", uid));
-            if (!uSnap.exists()) continue;
+        studentUids.forEach((uid, i) => {
+            const uSnap = userSnaps[i];
+            const reportSnap = reportSnaps[i];
+
+            if (!uSnap.exists()) return;
 
             const s = uSnap.data();
             const name = s.name || `${s.firstName || ''} ${s.surname || ''}`.trim() || 'Student';
             const section = s.fullSection || s.section || '—';
             const initial = name.charAt(0).toUpperCase();
 
-            const reportQ = query(
-                collection(db, "reports"),
-                where("studentUid", "==", uid),
-                orderBy("submittedAt", "desc"),
-                limit(1)
-            );
-
-            const reportSnap = await getDocs(reportQ);
             const reportStatus = reportSnap.empty
                 ? 'No Report'
                 : (reportSnap.docs[0].data().status || 'Pending');
 
             const item = document.createElement('div');
-            item.className = `report-student-item ${selectedStudentId === uid ? 'active' : ''}`;
+            item.className = `report-student-item`;
 
             item.innerHTML = `
                 <div class="report-student-avatar">${initial}</div>
@@ -170,12 +177,10 @@ async function loadStudentsFromBatch(batchId) {
                 </div>
             `;
 
-            item.addEventListener('click', () =>
-                loadStudentReport(uid, name, item)
-            );
+            item.onclick = () => loadStudentReport(uid, name, item);
 
             studentList.appendChild(item);
-        }
+        });
 
     } catch (e) {
         console.error('[Reports] loadStudentsFromBatch:', e);
@@ -191,94 +196,175 @@ function getStatusClass(status) {
     return 'badge-info';
 }
 
+function setupReviewButtons(reportDocId, studentUid, studentName) {
+    const approveBtn = document.getElementById("btn-approve-report");
+    const rejectBtn = document.getElementById("btn-reject-report");
+    const feedbackBtn = document.getElementById("send-feedback-btn");
+    const remarksInput = document.getElementById("review-remarks");
+
+    if (!approveBtn || !rejectBtn || !feedbackBtn) return;
+
+    // Reset UI
+    approveBtn.disabled = false;
+    rejectBtn.disabled = false;
+    feedbackBtn.disabled = false;
+
+    if (remarksInput) remarksInput.value = "";
+
+    // Optional: store current context (safe fallback)
+    currentReportDocId = reportDocId;
+    currentStudentUid = studentUid;
+
+    // 🔥 Fetch latest status to control buttons
+    getDoc(doc(db, "reports", reportDocId)).then(snap => {
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+        const status = (data.status || "Pending").toLowerCase();
+
+        if (status === "approved") {
+            approveBtn.disabled = true;
+        }
+
+        if (status === "rejected") {
+            rejectBtn.disabled = true;
+        }
+
+        // If already finalized, prevent double actions
+        if (status === "approved" || status === "rejected") {
+            approveBtn.disabled = true;
+            rejectBtn.disabled = true;
+        }
+    });
+}
+
 // ─── REPORT DETAIL PANEL ──────────────────────────────────────
+let reportListener = null;
+
+let pdfTimeout = null;
+
 async function loadStudentReport(uid, studentName, clickedItem) {
     selectedStudentId = uid;
 
-    document.querySelectorAll('.report-student-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.report-student-item')
+        .forEach(el => el.classList.remove('active'));
+
     if (clickedItem) clickedItem.classList.add('active');
 
-    const noMsg = document.getElementById('no-selection-msg');
-    const activeView = document.getElementById('active-report-view');
-    if (noMsg) noMsg.style.display = 'none';
-    if (activeView) activeView.style.display = 'block';
+    document.getElementById('no-selection-msg').style.display = 'none';
+    document.getElementById('active-report-view').style.display = 'block';
+
+    document.getElementById('report-history').innerHTML = "";
+    document.getElementById('adviser-pdf-preview').src = "";
+
+    if (typeof reportListener === "function") {
+        reportListener();
+        reportListener = null;
+    }
 
     try {
         const uSnap = await getDoc(doc(db, "users", uid));
         const u = uSnap.exists() ? uSnap.data() : {};
 
-        // Sync Metadata to Header
         document.getElementById('view-student-name').innerText = u.name || studentName;
         document.getElementById('view-student-email').innerText = u.email || "N/A";
         document.getElementById('view-student-course').innerText = u.course || "N/A";
         document.getElementById('view-student-section').innerText = u.section || "N/A";
         document.getElementById('view-student-hte').innerText = u.company || "Not Assigned";
 
-        const reportData = await compileStudentPreviewData(uid, u);
-        
-        requestAnimationFrame(() => {
-            generateAdviserPreview(reportData);
+        const rq = query(
+            collection(db, "reports"),
+            where("studentUid", "==", uid),
+            orderBy("submittedAt", "desc"),
+            limit(1)
+        );
+
+        reportListener = onSnapshot(rq, async (snap) => {
+
+            if (uid !== selectedStudentId) return;
+            if (snap.empty) return;
+
+            const docSnap = snap.docs[0];
+            const report = docSnap.data();
+
+            currentReportDocId = docSnap.id;
+            currentStudentUid = uid;
+
+            renderHistory(report.history || []);
+
+            if (pdfTimeout) clearTimeout(pdfTimeout);
+
+            pdfTimeout = setTimeout(async () => {
+                const compiled = await compileStudentPreviewData(uid, u);
+
+                if (uid !== selectedStudentId) return;
+
+                requestAnimationFrame(() => {
+                    currentReportPdf = generateAdviserPreview(compiled);
+                });
+
+            }, 300); 
         });
-
-        const rq = query(collection(db, "reports"), where("uid", "==", uid), limit(1));
-        const rSnap = await getDocs(rq);
-
-        if (!rSnap.empty) {
-            setupReviewButtons(rSnap.docs[0].id, uid, studentName);
-        }
 
     } catch (e) {
         console.error('[Reports] loadError:', e);
     }
 }
-
 async function compileStudentPreviewData(uid, studentBasicInfo) {
     try {
-        const attQuery = query(collection(db, "attendance"), where("uid", "==", uid), orderBy("timestamp", "desc"));
-        const attSnap = await getDocs(attQuery);
-        let minutes = 0;
-        let attendanceRows = [];
-        
+        // Attendance
+        const attQ = query(
+            collection(db, "attendance"),
+            where("uid", "==", uid),
+            orderBy("timestamp", "desc")
+        );
+
+        const attSnap = await getDocs(attQ);
+
+        let attendance = [];
+        let totalHours = 0;
+
         attSnap.forEach(d => {
-            const data = d.data();
-            const status = data.status || "Pending";
-            if (data.timeIn && data.timeOut) {
-                if (status === "Approved") minutes += calculateMinutes(data.timeIn, data.timeOut);
-                attendanceRows.push([data.displayDate, data.timeIn, data.timeOut, data.note || "", status]);
+            const a = d.data();
+
+            if ((a.status || '').toLowerCase() === 'approved') {
+                totalHours += computeHoursDecimal(a.timeIn, a.timeOut);
             }
+
+            attendance.push(a);
         });
 
-        const checkQuery = query(collection(db, "checklist"), where("uid", "==", uid));
-        const checkSnap = await getDocs(checkQuery);
-        let checklistRows = [];
-        let ApprovedCount = 0;
-        
+        // Checklist
+        const checkQ = query(collection(db, "checklist"), where("uid", "==", uid));
+        const checkSnap = await getDocs(checkQ);
+
+        let checklist = [];
+        let docsApproved = 0;
+
         checkSnap.forEach(d => {
-            const data = d.data();
-            if (data.status === "Approved") ApprovedCount++;
-            checklistRows.push([
-                data.formKey ? data.formKey.replace(/-/g, ' ').toUpperCase() : 'UNKNOWN',
-                data.dateSubmitted || 'N/A',
-                data.status || 'Pending',
-                data.remarks || "No remarks"
-            ]);
+            const c = d.data();
+
+            if (c.status === "Approved") docsApproved++;
+            checklist.push(c);
         });
 
         return {
             personal: {
-                name: studentBasicInfo.name || `${studentBasicInfo.firstName || ''} ${studentBasicInfo.surname || ''}`.trim(),
-                company: studentBasicInfo.company || "N/A",
+                name: studentBasicInfo.name ||
+                    `${studentBasicInfo.firstName || ''} ${studentBasicInfo.surname || ''}`.trim(),
                 school: studentBasicInfo.school || "N/A",
-                section: `${studentBasicInfo.course || 'IT'}-${studentBasicInfo.section || 'N/A'}`,
+                section: studentBasicInfo.fullSection || studentBasicInfo.section || "N/A",
+                company: studentBasicInfo.company || "Not Assigned",
                 supervisor: document.getElementById('user-display-name')?.innerText || "Adviser"
             },
             stats: {
-                totalHours: (minutes / 60).toFixed(1),
-                docsApproved: ApprovedCount
+                totalHours: parseFloat(totalHours.toFixed(1)),
+                docsApproved
             },
-            attendance: attendanceRows,
-            checklist: checklistRows
+            attendance,
+            checklist
         };
+
     } catch (e) {
         console.error("Preview Compilation Error:", e);
         return null;
@@ -387,6 +473,7 @@ function generateAdviserPreview(reportData) {
                 if (status === 'Approved') data.cell.styles.textColor = [46, 204, 113];
                 if (status === 'Rejected') data.cell.styles.textColor = [231, 76, 60];
                 if (status === 'Pending') data.cell.styles.textColor = [230, 126, 34];
+                if (status === 'Pending Approval') data.cell.styles.textColor = [241, 196, 15];
             }
         }
     });
@@ -464,6 +551,7 @@ async function displayFullReport(uid, data) {
     const rq = query(
         collection(db, "reports"),
         where("studentUid", "==", uid),
+        orderBy("submittedAt", "desc"),
         limit(1)
     );
 
@@ -577,6 +665,8 @@ async function sendFeedback(reportDocId, studentUid) {
         type: "feedback"
     });
 
+    await notifyAdviserFeedback(studentUid, "Adviser");
+
     renderHistory([...data.history, entry]);
 
     alert("Feedback sent!");
@@ -600,4 +690,22 @@ function renderHistory(history = []) {
                 ${h.message ? `<p>${h.message}</p>` : ""}
             </div>
         `).join("");
+}
+
+function computeHoursDecimal(tIn, tOut) {
+    if (!tIn || !tOut) return 0;
+    const parse = (t) => {
+        const [part, mod] = String(t).split(' ');
+        let [h, m] = part.split(':').map(Number);
+        if (mod === 'PM' && h < 12) h += 12;
+        if (mod === 'AM' && h === 12) h = 0;
+        return h + m / 60;
+    };
+    const diff = parse(tOut) - parse(tIn);
+    return diff < 0 ? diff + 24 : diff;
+}
+
+function computeHoursDisplay(tIn, tOut) {
+    const h = computeHoursDecimal(tIn, tOut);
+    return h > 0 ? `${h.toFixed(1)}h` : '—';
 }

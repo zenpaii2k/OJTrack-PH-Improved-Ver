@@ -9,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, formatTimestamp
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications, notifyReportSubmitted} from '../js/notifications.js';
 
 initTheme();
 
@@ -437,15 +440,28 @@ async function submitReport(uid) {
     if (!uid) return;
 
     const btn = document.getElementById('btn-submit');
-    if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+    }
 
     try {
+        const userSnap = await getDoc(doc(db, "users", uid));
+        const userData = userSnap.data();
+
+        const adviserUid = userData?.supervisorId;
+        const studentName =
+            userData?.name ||
+            `${userData?.firstName || ''} ${userData?.surname || ''}`.trim() ||
+            "Student";
+
         const pdf       = generateAdviserPreview(reportData);
         const pdfBase64 = pdf ? pdf.output('datauristring') : null;
 
+
         await setDoc(doc(db, "reports", uid), {
             studentUid:   uid,
-            studentName:  reportData.personal.name,
+            studentName:  studentName,
             section:      reportData.personal.section,
             hte:          reportData.personal.company,
             totalHours:   reportData.stats.totalHours,
@@ -456,13 +472,20 @@ async function submitReport(uid) {
             pdfBase64:    pdfBase64,
         });
 
+        if (adviserUid) {
+            await notifyReportSubmitted(adviserUid, studentName);
+        }
+
         alert('Report submitted! Your adviser will review it shortly.');
 
     } catch (e) {
         console.error('[PDF] submitReport error:', e);
         alert('Submission failed: ' + e.message);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '📤 Submit for Review'; }
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📤 Submit for Review';
+        }
     }
 }
 

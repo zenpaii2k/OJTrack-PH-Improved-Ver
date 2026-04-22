@@ -1,18 +1,3 @@
-/**
- * OJTrack PH — account.js
- * ─────────────────────────────────────────────────────────────
- * FIXES:
- *  1. setupThemeToggle('sidebar-theme-btn') — WAS MISSING
- *  2. setupProfileDropdown / setupNotifDropdown — replaced manual wiring
- *  3. sidebar-logout-btn wired — WAS MISSING
- *  4. attendance: where('uid'), orderBy('timestamp'), status case-insensitive
- *  5. users: data.surname not data.lastName; data.hoursCompleted vs completedHours
- *  6. users: data.batch (schema field) not data.batchId
- *  7. users: data.timeStart/timeEnd (schema) correctly used
- *  8. Checklist doc-progress uses correct status strings ("Approved")
- * ─────────────────────────────────────────────────────────────
- */
-
 import { protectPage } from "../authguard.js";
 import { auth, db } from '../firebase-config.js';
 import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
@@ -24,7 +9,10 @@ import {
     initTheme, setupThemeToggle, setupProfileDropdown,
     setupNotifDropdown, populateHeaderUser, sanitizeText, formatTimestamp
 } from '../js/theme.js';
-import { setupNotificationSystem } from '../js/notifications.js';
+import { setupNotificationSystem,
+  sendNotification,
+  markAllRead,
+  clearAllNotifications} from '../js/notifications.js';
 
 // ─── INIT ────────────────────────────────────────────────────
 initTheme();
