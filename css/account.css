@@ -23,9 +23,6 @@
     align-items: start;
 }
 
-/* Left: name + info chips */
-.summary-content {}
-
 .student-name {
     font-family: var(--font-display);
     font-size: 1.6rem;
@@ -65,9 +62,6 @@
     font-weight: 500;
 }
 
-/* Right: progress bars */
-.progress-section {}
-
 .progress-label-row {
     display: flex;
     justify-content: space-between;
@@ -89,7 +83,7 @@
 /* Note: .progress-bar class reused from shared.css structure */
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--brand-gold), #ffec6e);
+    background: linear-gradient(90deg, var(--brand-gold), #CC9704);
     border-radius: 6px;
     transition: width 0.6s ease;
     width: 0%;

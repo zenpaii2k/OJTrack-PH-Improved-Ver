@@ -222,7 +222,6 @@ fieldset.form-section legend {
     outline: none;
     transition: border-color var(--transition), box-shadow var(--transition);
     box-sizing: border-box;
-    -webkit-appearance: none;
 }
 
 .reg-card .input-group input:focus,

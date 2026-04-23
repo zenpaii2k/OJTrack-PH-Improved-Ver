@@ -53,7 +53,7 @@
 
 .batch-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--brand-gold), #ffec6e);
+    background: linear-gradient(90deg, var(--brand-gold), #CC9704);
     border-radius: 4px;
     transition: width 0.5s ease;
 }

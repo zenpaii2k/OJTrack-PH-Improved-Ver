@@ -16,11 +16,11 @@ html.dark-theme {
     --border:  rgba(255,255,255,0.07);
     --text:    #f0f0f0;
     --text-dim:#888;
-    --accent:  #ffd400;
+    --accent:  #CC9704;
     --blue:    #2c55d6;
     --danger:  #e05a5a;
     --success: #2ecc71;
-    --brand-yellow: #ffd400;
+    --brand-yellow: #CC9704;
 }
 
 /* ─── TOKENS: LIGHT ──────────────────────────────────────────── */
@@ -31,7 +31,7 @@ html.light-theme {
     --border:  rgba(0,0,0,0.08);
     --text:    #111114;
     --text-dim:#666;
-    --accent:  #f5c800;
+    --accent:  #CC9704;
     --blue:    #2c55d6;
     --danger:  #e05a5a;
     --success: #27ae60;
@@ -315,7 +315,7 @@ html.light-theme .mockup-bar {
     flex-shrink: 0;
 }
 .dot.red    { background: #ff5f57; }
-.dot.yellow { background: #ffbd2e; }
+.dot.yellow { background: #CC9704; }
 .dot.green  { background: #28c840; }
 
 .mockup-url {
@@ -354,7 +354,7 @@ html.light-theme .mockup-url {
 .mock-logo-row {
     font-size: 0.55rem;
     font-weight: 700;
-    color: #ffd400;
+    color: #CC9704;
     padding: 6px 8px 10px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
     margin-bottom: 4px;
@@ -370,7 +370,7 @@ html.light-theme .mockup-url {
 
 .mock-nav-item.active-mock {
     background: rgba(255,212,0,0.12);
-    color: #ffd400;
+    color: #CC9704;
     font-weight: 700;
 }
 
@@ -394,7 +394,7 @@ html.light-theme .mockup-url {
     background: rgba(255,255,255,0.04);
 }
 
-.mock-stat.gold   { border-top-color: #ffd400; }
+.mock-stat.gold   { border-top-color: #CC9704; }
 .mock-stat.red    { border-top-color: #e05a5a; }
 .mock-stat.green  { border-top-color: #2ecc71; }
 
@@ -421,7 +421,7 @@ html.light-theme .mockup-url {
 
 .mock-bar > div {
     height: 100%;
-    background: #ffd400;
+    background: #CC9704;
     border-radius: 2px;
 }
 
@@ -458,7 +458,74 @@ html.light-theme .mockup-url {
 
 .mock-badge.gold-badge {
     background: rgba(255,212,0,0.15);
-    color: #ffd400;
+    color: #CC9704;
+}
+
+/* ─── HERO MOCKUP LIGHT MODE FIX ───────────────────────────── */
+
+html.light-theme .mock-sidebar {
+    background: rgba(0,0,0,0.04);
+    border-right: 1px solid rgba(0,0,0,0.08);
+}
+
+html.light-theme .mock-logo-row {
+    color: #CC9704;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+html.light-theme .mock-nav-item {
+    color: rgba(0,0,0,0.5);
+}
+
+html.light-theme .mock-nav-item.active-mock {
+    background: rgba(255,212,0,0.2);
+    color: #CC9704;
+}
+
+/* Content area */
+html.light-theme .mock-content {
+    background: transparent;
+}
+
+/* Stats cards */
+html.light-theme .mock-stat {
+    background: rgba(0,0,0,0.04);
+}
+
+html.light-theme .mock-stat-val {
+    color: #111; /* FIX: was white */
+}
+
+html.light-theme .mock-stat-lbl {
+    color: rgba(0,0,0,0.5);
+}
+
+/* Progress bar */
+html.light-theme .mock-bar {
+    background: rgba(0,0,0,0.1);
+}
+
+/* Table header */
+html.light-theme .mock-table-row {
+    color: rgba(0,0,0,0.6);
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Logs */
+html.light-theme .mock-log-row {
+    color: rgba(0,0,0,0.55);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Badges */
+html.light-theme .mock-badge.green-badge {
+    background: rgba(46,204,113,0.2);
+    color: #1e874b;
+}
+
+html.light-theme .mock-badge.gold-badge {
+    background: rgba(255,212,0,0.25);
+    color: #a87c00;
 }
 
 /* ─── FEATURE CARDS (home strip) ─────────────────────────────── */
@@ -841,6 +908,21 @@ html.light-theme .contact-form textarea {
 }
 
 .modal-overlay.show { display: flex; }
+
+.legal-scroll-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 4px 16px 0;
+    font-size: 0.87rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+}
+
+.legal-scroll-view h4 {
+    color: var(--brand-gold);
+    font-size: 0.9rem;
+    margin: 16px 0 4px;
+}
 
 .login-card {
     background: var(--card);

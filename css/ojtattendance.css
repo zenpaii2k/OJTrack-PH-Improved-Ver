@@ -270,8 +270,7 @@
 }
 
 .cal-pending {
-    background: yellow;
-    color: #ffc107;
+    background: #CC9704;
 }
 
 .cal-approved {

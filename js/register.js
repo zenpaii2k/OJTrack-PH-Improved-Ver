@@ -1,16 +1,3 @@
-/**
- * OJTrack PH — register.js (Improved)
- * ─────────────────────────────────────────────────────────────
- * Key improvements over original:
- *   1. Robust client-side validation with per-field error messages
- *   2. Password strength indicator
- *   3. Input sanitization before writing to Firestore
- *   4. Proper submit spinner / loading state
- *   5. Uses theme.js for consistency
- *   6. Invitation link context handled cleanly
- * ─────────────────────────────────────────────────────────────
- */
-
 import { db, auth } from '../firebase-config.js';
 import { createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
@@ -104,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRole = 'student';
         const roleToggle = document.querySelector('.role-selector-main');
         if (roleToggle) roleToggle.style.display = 'none';
+
+        const loginToggle = document.querySelector('.footer-link');
+        if (loginToggle) loginToggle.style.display = 'none';
     }
 
     toggleRegRole(currentRole);

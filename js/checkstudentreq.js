@@ -284,7 +284,7 @@ window.openReviewModal = (docId, fileData, status, fileName, formKey) => {
         remarksField.disabled = true;
         
         previewArea.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ff4d4d; gap:10px;">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#CC9704; gap:10px;">
                 <span style="font-size: 3rem;">⚠️</span>
                 <p>No document to review.</p>
                 <small style="color:#888;">The document was rejected or is empty.</small>

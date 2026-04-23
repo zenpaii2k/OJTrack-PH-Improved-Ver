@@ -145,12 +145,6 @@ forgotPasswordLink.addEventListener('click', async (e) => {
     }
 });
 
-document.getElementById('theme-toggle-button').onclick = () => {
-    const html = document.documentElement;
-    const theme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', theme);
-};
-
 const feedbackForm = document.getElementById('feedbackForm');
 const responseMessage = document.getElementById('responseMessage');
 const submitBtn = document.getElementById('submitBtn');
@@ -205,16 +199,16 @@ const legalData = {
         title: "Privacy Policy",
         content: `
             <p>Last Updated: April 2026</p>
-            <h4 style="color: #ffd400; margin-top: 15px;">1. Information We Collect</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">1. Information We Collect</h4>
             <p>Nous R&D collects personal information including your full name, school email address, student ID, and OJT-related data (clock-in/out times, tasks, and location data if enabled).</p>
             
-            <h4 style="color: #ffd400; margin-top: 15px;">2. How We Use Data</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">2. How We Use Data</h4>
             <p>Your data is used solely for tracking internship progress. Attendance logs and uploaded requirements are shared only with your designated OJT Adviser/Coordinator.</p>
             
-            <h4 style="color: #ffd400; margin-top: 15px;">3. Data Security</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">3. Data Security</h4>
             <p>We utilize Firebase's industry-standard encryption. While we strive to protect your data, no method of digital storage is 100% secure. By using OJTrack PH, you acknowledge this risk.</p>
             
-            <h4 style="color: #ffd400; margin-top: 15px;">4. Third-Party Services</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">4. Third-Party Services</h4>
             <p>We do not sell your data. We use Formspree for feedback and Firebase for authentication and database management.</p>
         `
     },
@@ -222,16 +216,16 @@ const legalData = {
         title: "Terms and Conditions",
         content: `
             <p>Last Updated: April 2026</p>
-            <h4 style="color: #ffd400; margin-top: 15px;">1. User Conduct</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">1. User Conduct</h4>
             <p>Users must provide truthful and accurate logs. Falsifying OJT hours or documents is a violation of institutional integrity and may result in account termination.</p>
             
-            <h4 style="color: #ffd400; margin-top: 15px;">2. Intellectual Property</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">2. Intellectual Property</h4>
             <p>OJTrack PH and its original content, features, and functionality are owned by Nous R&D and are protected by international copyright and trademark laws.</p>
             
-            <h4 style="color: #ffd400; margin-top: 15px;">3. Limitation of Liability</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">3. Limitation of Liability</h4>
             <p>Nous R&D is a tool provider. We are not responsible for disputes between the student, the school, and the host training establishment (HTE).</p>
             
-            <h4 style="color: #ffd400; margin-top: 15px;">4. Modifications</h4>
+            <h4 style="color: #CC9704; margin-top: 15px;">4. Modifications</h4>
             <p>We reserve the right to modify these terms at any time. Continued use of the platform signifies acceptance of updated terms.</p>
         `
     }

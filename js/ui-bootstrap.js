@@ -1,32 +1,3 @@
-/**
- * OJTrack PH — ui-bootstrap.js
- * ─────────────────────────────────────────────────────────────
- * GLOBAL UI WIRING MODULE
- *
- * Add ONE import line to any page JS that still has broken
- * theme toggles, logout buttons, or dropdown menus:
- *
- *   import '/js/ui-bootstrap.js';
- *
- * This module auto-wires on DOMContentLoaded:
- *   - theme-toggle-btn  (header dropdown)
- *   - sidebar-theme-btn (sidebar bottom)
- *   - logout-link       (header dropdown)
- *   - sidebar-logout-btn (sidebar bottom)
- *   - profile-trigger / profile-menu dropdown
- *   - notif-btn / notif-modal dropdown
- *
- * It is safe to import alongside existing wiring — all
- * event listeners use addEventListener, not onclick reassignment,
- * so they compose cleanly.
- *
- * Files that need this import added:
- *   js/checkstudentdatabase.js  → add:  import '/js/ui-bootstrap.js';
- *   js/checkstudentreq.js       → add:  import '/js/ui-bootstrap.js';
- *   js/checkstudentreports.js   → add:  import '/js/ui-bootstrap.js';
- * ─────────────────────────────────────────────────────────────
- */
-
 import { toggleTheme, getTheme, applyTheme } from './theme.js';
 import { auth } from '../firebase-config.js';
 import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';

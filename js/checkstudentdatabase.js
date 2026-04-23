@@ -350,18 +350,18 @@ async function viewStudentDetails(docId, studentData) {
             card.className = "log-review-card";
 
             card.innerHTML = `
-                <div class="log-card-inner" style="background:#1e1e1e; padding:15px; border-radius:8px; margin-bottom:12px; border-left: 5px solid ${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#f1c40f'};">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div style="flex: 1; padding-right: 15px;">
+                <div class="log-card-inner" style= padding:15px; border-radius:8px; margin-bottom:12px; border-left: 5px solid ${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#CC9704'};">
+                    <div style="display:flex; align-items:flex-start; gap:15px;">
+                        <div style="flex:1; min-width:0;">
                             <div style="display:flex; align-items:center; gap:10px;">
-                                <strong style="color:#ffd400; font-size: 1.1rem;">${log.displayDate}</strong>
-                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#f1c40f'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
+                                <strong style="color:#CC9704 font-size: 1.1rem;">${log.displayDate}</strong>
+                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#CC9704'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
                                     ${status.toUpperCase()}
                                 </span>
                             </div>
 
                             <div style="color:#aaa; font-size:0.85rem; margin-top:8px;">
-                                <span style="background: rgba(255,212,0,0.1); color: #ffd400; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                                <span style="background: rgba(255,212,0,0.1); color: #CC9704; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
                                     🕒 ${log.timeIn} — ${log.timeOut}
                                 </span>
                                 ${status === "Approved" ? `<span style="color:#2ecc71; margin-left:10px; font-weight: bold;">(+${(calculateMinutes(log.timeIn, log.timeOut)/60).toFixed(1)} hrs)</span>` : ''}
@@ -369,20 +369,31 @@ async function viewStudentDetails(docId, studentData) {
 
                             <div class="log-note-box" style="margin-top:12px; padding:10px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid #444;">
                                 <small style="display:block; color:#888; margin-bottom:4px; font-size:0.7rem; text-transform:uppercase;">Daily Accomplishment Note:</small>
-                                <p style="margin:0; font-size:0.9rem; color:#eee; line-height:1.4;">
+                                <p style="margin:0; font-size:0.9rem; color:#888; line-height:1.4;">
                                     ${log.note || "<em>No accomplishment notes provided for this log.</em>"}
                                 </p>
+                                ${log.attachment ? `
+                            <button onclick="openAttachmentModal('${log.attachment}')"
+                                style="background:#3498db; color:white; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; font-size:0.75rem;">
+                                View Attachment
+                            </button>
+                        ` : ''}
                             </div>
-                        </div>
 
-                        <div class="log-actions" style="display:flex; flex-direction:column; gap:8px;">
+                        <div class="log-actions" style="
+                                display:flex;
+                                flex-direction:column;
+                                gap:8px;
+                                flex-shrink:0;
+                                width:120px;
+                            ">
                             ${!isLocked ? `
                                 <button onclick="confirmLogAction('${logId}', 'Approved', '${activeStudentUid}', '${log.displayDate}')"
-                                    style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
+                                    style="width:100%; box-sizing:border-box; background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
                                     Approve
                                 </button>
                                 <button onclick="confirmLogAction('${logId}', 'Rejected', '${activeStudentUid}', '${log.displayDate}')" 
-                                    style="background:#e74c3c; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
+                                    style="width:100%; box-sizing:border-box; background:#e74c3c; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 0.8rem;">
                                     Reject
                                 </button>
                             ` : `
@@ -403,6 +414,23 @@ async function viewStudentDetails(docId, studentData) {
         renderCalendar(currentCalMonth);
     });
 }
+
+window.openAttachmentModal = function(fileData) {
+    const container = document.getElementById('attachment-container');
+
+    if (fileData.startsWith('data:image')) {
+        container.innerHTML = `<img src="${fileData}" style="width:100%; height:100%; object-fit:contain;">`;
+    } else {
+        container.innerHTML = `<iframe src="${fileData}" width="100%" height="100%"></iframe>`;
+    }
+
+    document.getElementById('attachment-modal').style.display = 'flex';
+};
+
+window.closeAttachmentModal = function() {
+    document.getElementById('attachment-modal').style.display = 'none';
+    document.getElementById('attachment-container').innerHTML = '';
+};
 
 // Helper to update the Progress UI
 function updateProgressBar(approved, required) {
@@ -472,7 +500,7 @@ function renderCalendar(date) {
         const status = loggedDates.get(fullDateStr);
         const isToday = i === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
-        if (isToday) dayEl.style.border = "2px solid #ffd400";
+        if (isToday) dayEl.style.border = "2px solid #CC9704";
 
         if (status === "Approved") {
             dayEl.style.background = "#2ecc71";
@@ -481,7 +509,7 @@ function renderCalendar(date) {
             dayEl.style.background = "#e74c3c";
             dayEl.style.color = "#fff";
         } else if (status === "Pending") {
-            dayEl.style.background = "#f1c40f";
+            dayEl.style.background = "#CC9704";
             dayEl.style.color = "#000";
         }
         calGrid.appendChild(dayEl);
