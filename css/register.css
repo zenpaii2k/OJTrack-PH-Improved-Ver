@@ -468,6 +468,29 @@ fieldset.form-section legend {
 
 .footer-link a:hover { text-decoration: underline; }
 
+.modal.hidden {
+    display: none;
+}
+
+.modal {
+    font-family: var(--text-primary);
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.invite-section {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
 /* ─── LEGAL MODAL SCROLL AREA ────────────────────────────────── */
 .legal-scroll-view {
     flex: 1;

@@ -1,18 +1,28 @@
 import { db, auth } from '../firebase-config.js';
-import { createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
-    doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp
+    doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp, query, collection, where, getDocs, arrayRemove
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { initTheme, sanitizeText } from '../js/theme.js';
 
 // ─── INIT ────────────────────────────────────────────────────
 initTheme();
 
+async function waitForAuthReady() {
+    if (auth.currentUser) return auth.currentUser;
+
+    return new Promise((resolve) => {
+        const unsub = onAuthStateChanged(auth, (user) => {
+            unsub();
+            resolve(user);
+        });
+    });
+}
+
 // ─── INVITE CONTEXT (for batch registration links) ───────────
 const urlParams  = new URLSearchParams(window.location.search);
 const inviteId   = urlParams.get('inviteId');
-const batchId    = urlParams.get('batchId');
-
+let inviteData = null;
 let currentRole = 'student';
 
 // ─── LEGAL CONTENT ───────────────────────────────────────────
@@ -62,13 +72,96 @@ const legalModal = document.getElementById('legal-modal');
 const legalTitle = document.getElementById('legal-title');
 const legalCont  = document.getElementById('legal-content');
 
+function sanitizeInput(str, maxLen = 200) {
+    if (typeof str !== 'string') return '';
+    return str.trim().slice(0, maxLen);
+}
+
+function setLoading(state) {
+    submitBtn.disabled = state;
+    submitLbl.textContent = state ? 'Creating account…' : 'Create Account';
+    submitSpin.style.display = state ? 'inline-block' : 'none';
+}
+
+function showError(msg) {
+    errBanner.textContent = `⚠️ ${sanitizeText(msg)}`;
+    errBanner.style.display = 'block';
+}
+
+async function checkExistingUser(email) {
+    const q = query(collection(db, "users"), where("email", "==", email));
+    const snap = await getDocs(q);
+
+    if (!snap.empty) {
+        return snap.docs[0]; // existing user
+    }
+    return null;
+}
+
+// ---- VALIDATE INVITE
+
+async function validateInvite(id) {
+    if (!id) return null;
+
+    const ref = doc(db, "invitations", id);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) throw new Error("Invalid invite.");
+
+    const data = snap.data();
+
+    if (data.status !== "pending" || data.usedBy) {
+        throw new Error("Invite no longer valid.");
+    }
+
+    return { ref, invite: data };
+}
+
+async function removeStudentFromAllBatches(uid) {
+    const q = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
+    const snap = await getDocs(q);
+
+    const updates = [];
+
+    snap.forEach(docSnap => {
+        updates.push(
+            updateDoc(doc(db, "batches", docSnap.id), {
+                studentUids: arrayRemove(uid)
+            })
+        );
+    });
+
+    await Promise.all(updates);
+}
+
+const ensureAuth = async () => {
+    return new Promise((resolve, reject) => {
+        const unsub = onAuthStateChanged(auth, (user) => {
+            unsub(); // run once
+
+            if (user?.uid) {
+                resolve(user);
+            } else {
+                reject(new Error("Auth not ready"));
+            }
+        });
+    });
+};
+
 // ─── ROLE SWITCHING ──────────────────────────────────────────
-window.toggleRegRole = function(role) {
+function toggleRegRole (role) {
+window.toggleRegRole = toggleRegRole;
     currentRole = role;
-    document.getElementById('student-only-fields').style.display   = role === 'student'    ? 'block' : 'none';
-    document.getElementById('supervisor-only-fields').style.display = role === 'supervisor' ? 'block' : 'none';
-    document.getElementById('btn-student').classList.toggle('active',    role === 'student');
+
+    document.getElementById('student-only-fields').style.display =
+        role === 'student' ? 'block' : 'none';
+
+    document.getElementById('supervisor-only-fields').style.display =
+        role === 'supervisor' ? 'block' : 'none';
+
+    document.getElementById('btn-student').classList.toggle('active', role === 'student');
     document.getElementById('btn-supervisor').classList.toggle('active', role === 'supervisor');
+
     updateRequiredFields(role);
 };
 
@@ -85,15 +178,21 @@ function updateRequiredFields(role) {
 }
 
 // ─── INVITE CONTEXT ───────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    if (inviteId && batchId) {
-        // If arriving via invite link, lock role to student
+document.addEventListener('DOMContentLoaded', async () => {
+    if (inviteId) {
         currentRole = 'student';
-        const roleToggle = document.querySelector('.role-selector-main');
-        if (roleToggle) roleToggle.style.display = 'none';
 
-        const loginToggle = document.querySelector('.footer-link');
-        if (loginToggle) loginToggle.style.display = 'none';
+        document.querySelector('.role-selector-main')?.style.setProperty('display', 'none');
+        document.querySelector('.footer-link')?.style.setProperty('display', 'none');
+
+        try {
+            const result = await validateInvite(inviteId);
+            inviteData = result.invite; 
+        } catch (err) {
+            alert(err.message);
+            window.location.href = '/index.html';
+            return;
+        }
     }
 
     toggleRegRole(currentRole);
@@ -285,109 +384,129 @@ function hideBannerError() {
     errBanner.textContent = '';
 }
 
-function setLoading(loading) {
-    submitBtn.disabled     = loading;
-    submitLbl.textContent  = loading ? 'Creating account…' : 'Create Account';
-    submitSpin.style.display = loading ? 'inline-block' : 'none';
-}
-
 // ─── FORM SUBMIT ─────────────────────────────────────────────
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideBannerError();
-
-    if (!validateForm()) return;
-
-    // Build the Firestore payload
-    const email    = document.getElementById('reg-email').value.trim().toLowerCase();
-    const password = document.getElementById('reg-password').value;
-
-    // Sanitize text inputs
-    const fname = sanitizeInput(document.getElementById('reg-firstname').value.trim());
-    const lname = sanitizeInput(document.getElementById('reg-surname').value.trim());
-    const fullName = `${fname} ${lname}`;
-
-    let userData = {
-        role:      currentRole,
-        firstName: fname,
-        lastName:  lname,
-        name:      fullName,
-        email:     email,
-        createdAt: serverTimestamp(),
-    };
-
-    if (currentRole === 'student') {
-        userData = {
-            ...userData,
-            school:       sanitizeInput(document.getElementById('std-school').value.trim()),
-            course:       document.getElementById('std-course').value,
-            yearLevel:    document.getElementById('std-year').value,
-            section:      sanitizeInput(document.getElementById('std-section').value.trim()),
-            company:      sanitizeInput(document.getElementById('std-company').value.trim()),
-            requiredHours: parseInt(document.getElementById('std-total-hours').value, 10) || 600,
-            completedHours: 0,
-            shiftStart:   document.getElementById('std-start').value || null,
-            shiftEnd:     document.getElementById('std-end').value   || null,
-            adviserName:  sanitizeInput(document.getElementById('std-supervisor-name').value.trim()),
-            batchId:      batchId || null,
-        };
-    } else {
-        const assignedCourses = [...document.querySelectorAll('input[name="sup-course"]:checked')]
-            .map(cb => cb.value);
-        userData = {
-            ...userData,
-            orgName:         sanitizeInput(document.getElementById('sup-org').value.trim()),
-            contactNumber:   sanitizeInput(document.getElementById('sup-contact').value.trim()),
-            assignedCourses: assignedCourses,
-        };
-    }
-
     setLoading(true);
 
     try {
-        // 1. Create Firebase Auth account
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        const uid  = cred.user.uid;
-        userData.uid = uid;
+        const email = document.getElementById('reg-email').value.trim().toLowerCase();
+        const password = document.getElementById('reg-password').value;
 
-        // 2. Write Firestore user document
-        await setDoc(doc(db, 'users', uid), userData);
+        const fname = sanitizeInput(document.getElementById('reg-firstname').value);
+        const lname = sanitizeInput(document.getElementById('reg-surname').value);
 
-        // 3. If invited to a batch, update the batch document
-        if (batchId && inviteId && currentRole === 'student') {
-            const batchRef = doc(db, 'batches', batchId);
-            await updateDoc(batchRef, {
-                studentUids: arrayUnion(uid),
+        const existingSnap = await checkExistingUser(email);
+
+        let uid;
+        let authUser = null;
+
+        // ────────────────
+        // CASE 1: EXISTING USER → SHOW MODAL
+        // ────────────────
+        if (existingSnap) {
+            const existingData = existingSnap.data();
+
+            await showReRegModal(existingData);
+
+            // IMPORTANT: MUST SIGN IN USER
+            const cred = await createUserWithEmailAndPassword(auth, email, password)
+                .catch(async (err) => {
+                    if (err.code === "auth/email-already-in-use") {
+                        // fallback: sign in instead of create
+                        const { signInWithEmailAndPassword } =
+                            await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+
+                        const login = await signInWithEmailAndPassword(auth, email, password);
+                        return login;
+                    }
+                    throw err;
+                });
+
+            authUser = cred.user;
+            uid = existingSnap.id;
+        }
+
+        // ────────────────
+        // CASE 2: NEW USER
+        // ────────────────
+        else {
+            const cred = await createUserWithEmailAndPassword(auth, email, password);
+            authUser = cred.user;
+            uid = authUser.uid;
+        }
+
+        await authUser.getIdToken(true);
+
+        const userRef = doc(db, "users", uid);
+
+        const baseData = {
+            role: currentRole,
+            firstName: fname,
+            lastName: lname,
+            name: `${fname} ${lname}`,
+            email,
+            updatedAt: serverTimestamp()
+        };
+
+        await setDoc(userRef, {
+            ...baseData,
+            hoursCompleted: 0
+        }, { merge: true });
+
+        // ────────────────
+        // INVITE HANDLING
+        // ────────────────
+        if (inviteId && inviteData?.batchId) {
+
+            await removeStudentFromAllBatches(uid);
+
+            await updateDoc(userRef, {
+                batch: inviteData.batchId,
+                supervisorId: inviteData.supervisorId || null,
+                inviteId
+            });
+
+            await updateDoc(doc(db, "batches", inviteData.batchId), {
+                studentUids: arrayUnion(uid)
             });
         }
 
-        // 4. Redirect to appropriate dashboard
-        const dest = currentRole === 'student'
-            ? '/student/dashboard.html'
-            : '/supervisor/supervisordashboard.html';
-        window.location.replace(dest);
+        window.location.replace("/student/dashboard.html");
 
     } catch (err) {
+        showError(err.message);
         setLoading(false);
-        console.error('[Register] Error:', err.code);
-
-        const friendlyErrors = {
-            'auth/email-already-in-use': 'This email is already registered. Please sign in instead.',
-            'auth/invalid-email':        'The email address format is invalid.',
-            'auth/weak-password':        'Your password is too weak. Use at least 8 characters.',
-            'auth/network-request-failed': 'Network error. Please check your connection.',
-        };
-
-        showBannerError(friendlyErrors[err.code] || `Registration failed: ${err.message}`);
     }
 });
 
-// ─── SECURITY: INPUT SANITIZATION ────────────────────────────
-/**
- * Strips leading/trailing whitespace and limits length.
- * For text stored in Firestore, this prevents trivially large payloads.
- */
-function sanitizeInput(str, maxLen = 200) {
-    if (typeof str !== 'string') return '';
-    return str.trim().slice(0, maxLen);
+function showReRegModal(userData) {
+    const modal = document.getElementById("reRegModal");
+    const info  = document.getElementById("reRegInfo");
+
+    info.innerHTML = `
+        <p><strong>Name:</strong> ${userData.name}</p>
+        <p><strong>Email:</strong> ${userData.email}</p>
+        <p><strong>Role:</strong> ${userData.role}</p>
+        <p><strong>Batch:</strong> ${userData.batch || "None"}</p>
+    `;
+
+    modal.classList.remove("hidden");
+
+    return new Promise((resolve, reject) => {
+
+        document.getElementById("confirmReReg").onclick = () => {
+            modal.classList.add("hidden");
+            resolve(true);
+        };
+
+        document.getElementById("cancelReReg").onclick = () => {
+            modal.classList.add("hidden");
+            reject("User cancelled re-registration");
+        };
+    });
 }
+
+
+

@@ -113,7 +113,7 @@
                         placeholder="Search batches by name or course…"
                         autocomplete="off">
                 </div>
-                <button id="openModalBtn" class="btn btn-gold">
+                 <button id="openModalBtn" type="button" class="btn btn-gold">
                     ➕ Create New Batch
                 </button>
             </div>
@@ -178,10 +178,11 @@
 
                 <div id="create-batch-error" class="error-banner" style="display:none;margin-bottom:12px;"></div>
 
-                <div style="display:flex; gap:10px;">
-                    <button type="button" class="btn btn-outline" id="cancel-create-btn" style="flex:1;">Cancel</button>
-                    <button type="submit"  class="btn btn-gold"    style="flex:2;">Create Batch</button>
-                </div>
+                 <div style="display:flex; gap:10px;">
+                <button type="button" id="cancel-create-btn" class="btn btn-outline">Cancel</button>
+                <button type="submit" class="btn btn-gold">Create Batch</button>
+            </div>
+
             </form>
         </div>
     </div>
@@ -216,7 +217,10 @@
                         class="invite-email-input"
                         placeholder="Enter student email..."
                         autocomplete="off">
-                    <button class="btn btn-primary" id="generateInviteBtn">Generate Invite Link</button>
+                  <button id="generateInviteBtn" type="button" class="btn btn-primary">
+                Generate Invite Link
+            </button>
+            
                 </div>
                 <div id="invite-link-output" class="invite-link-box" style="display:none;">
                     <input type="text" id="invite-link-field" readonly class="invite-link-field">

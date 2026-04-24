@@ -3,7 +3,7 @@ import { db, auth } from "../firebase-config.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     collection, addDoc, query, where, getDocs, 
-    updateDoc, doc, arrayUnion, arrayRemove, getDoc, deleteDoc, orderBy, limit, onSnapshot
+    updateDoc, doc, arrayUnion, arrayRemove, getDoc, deleteDoc, orderBy, limit, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     initTheme,
@@ -11,8 +11,7 @@ import {
     setupProfileDropdown,
     setupNotifDropdown,
     populateHeaderUser,
-    sanitizeText,
-    formatTimestamp,
+    sanitizeText
 } from '../js/theme.js';
 
 import {  setupNotificationSystem,
@@ -55,10 +54,13 @@ protectPage('supervisor').then((user) => {
     loadBatches(user.uid);
 });
 
-function initCombinedRealTimeDashboard(user) {
-
+function initCombinedRealTimeDashboard(user, batchRef, uid) {
     updateTotalStats(user).then((uids) => {
         state.myStudentUids = uids;
+    });
+
+    return updateDoc(batchRef, {
+        studentUids: arrayUnion(uid)
     });
 }
 
@@ -167,32 +169,44 @@ async function getStudentProgress(uid) {
     }
 }
 
-async function updateBatchStats(uid) {
+async function updateBatchStats(supervisorId) {
     const totalEl = document.getElementById("bstat-total");
     const studentEl = document.getElementById("bstat-students");
     const activeEl = document.getElementById("bstat-active");
 
-    const q = query(collection(db, "batches"), where("supervisorId", "==", uid));
+    const q = query(collection(db, "batches"), where("supervisorId", "==", supervisorId));
     const snap = await getDocs(q);
 
     let totalBatches = 0;
     let totalStudentsSet = new Set();
     let activeBatches = 0;
 
-    snap.forEach(docSnap => {
+    for (const batchDoc of snap.docs) {
         totalBatches++;
 
-        const data = docSnap.data();
+        const data = batchDoc.data();
         const students = data.studentUids || [];
 
-        // count students uniquely
-        students.forEach(uid => totalStudentsSet.add(uid));
+        let cleanedStudents = [];
 
-        // active batch = has students
-        if (students.length > 0) activeBatches++;
-    });
+        for (const uid of students) {
+            const valid = await isStudentValid(uid);
 
-    // update UI
+            if (valid) {
+                totalStudentsSet.add(uid);
+                cleanedStudents.push(uid);
+            }
+        }
+
+        if (cleanedStudents.length !== students.length) {
+            await updateDoc(doc(db, "batches", batchDoc.id), {
+                studentUids: cleanedStudents
+            });
+        }
+
+        if (cleanedStudents.length > 0) activeBatches++;
+    }
+
     if (totalEl) totalEl.textContent = totalBatches;
     if (studentEl) studentEl.textContent = totalStudentsSet.size;
     if (activeEl) activeEl.textContent = activeBatches;
@@ -212,6 +226,64 @@ document.addEventListener('DOMContentLoaded', () => {
     if (createBatchForm) {
         createBatchForm.onsubmit = createNewBatch;
     }
+
+    const searchInput = document.getElementById("batch-search");
+
+    if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+            const value = e.target.value.toLowerCase().trim();
+            filterBatches(value);
+        });
+    }
+
+        // CREATE MODAL
+    document.getElementById("close-create-modal")?.addEventListener("click", () => {
+        closeModalById("createBatchModal");
+    });
+
+    document.getElementById("cancel-create-btn")?.addEventListener("click", () => {
+        closeModalById("createBatchModal");
+    });
+
+    // STUDENT MODAL
+    document.getElementById("close-student-modal")?.addEventListener("click", () => {
+        closeModalById("studentListModal");
+    });
+
+    // CLICK OUTSIDE MODAL CLOSE
+    ["createBatchModal", "studentListModal"].forEach(id => {
+        const modal = document.getElementById(id);
+        modal?.addEventListener("click", (e) => {
+            if (e.target === modal) modal.style.display = "none";
+        });
+    });
+
+    // INVITE BUTTON FIX
+    document.getElementById("generateInviteBtn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+
+    // ALWAYS re-check batch before generating
+    if (!activeBatchId) {
+        alert("No batch selected.");
+        return;
+    }
+
+    window.generateInviteLink(activeBatchId);
+});
+
+    // SIDEBAR BUTTON FIXES
+    document.getElementById("sidebar-theme-btn")?.addEventListener("click", () => {
+        document.documentElement.classList.toggle("dark-theme");
+        localStorage.setItem(
+            "ojtrack-theme",
+            document.documentElement.classList.contains("dark-theme") ? "dark" : "light"
+        );
+    });
+
+    document.getElementById("sidebar-logout-btn")?.addEventListener("click", () => {
+        signOut(auth).then(() => location.replace("/index.html"));
+    });
+
 });
 
 // --- CORE FUNCTIONS ---
@@ -229,7 +301,7 @@ async function createNewBatch(e) {
             year: document.getElementById('academicYear').value,
             supervisorId: auth.currentUser.uid,
             studentUids: [],
-            createdAt: new Date().toISOString()
+            createdAt: serverTimestamp()
         };
 
         await addDoc(collection(db, "batches"), batchData);
@@ -279,9 +351,9 @@ function renderBatchCard(batchId, data) {
 
     card.innerHTML = `
         <div class="batch-info">
-            <strong>${data.name}</strong>
+            <strong>${sanitizeText(data.name)}</strong>
             <p>${data.year}</p>
-            <small>${data.studentUids ? data.studentUids.length : 0} Students Assigned</small>
+            <small>${(data.studentUids || []).filter(uid => uid).length} Students Assigned</small>
         </div>
         <div class="batch-card-actions">
             <button class="btn btn-primary"
@@ -298,17 +370,6 @@ function renderBatchCard(batchId, data) {
 
     container.appendChild(card);
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-    const searchInput = document.getElementById("batch-search");
-
-    if (searchInput) {
-        searchInput.addEventListener("input", (e) => {
-            const value = e.target.value.toLowerCase().trim();
-            filterBatches(value);
-        });
-    }
-});
 
 function filterBatches(keyword) {
     const container = document.getElementById('batchContainer');
@@ -358,51 +419,56 @@ window.deleteBatch = async function(batchId, batchName) {
 
 // Inside batchmanagement.js -> window.generateinvitelink
 
-// --- NEW: INVITATION LOGIC ---
+window.generateInviteLink = async function(batchIdOverride) {
 
-window.generateInviteLink = async function() {
+    const batchId = batchIdOverride || activeBatchId;
+
+    if (!batchId) {
+        alert("No batch selected. Please open a batch first.");
+        return;
+    }
+
     const emailInput = document.getElementById('studentEmailSearch');
-    const email = emailInput.value.trim().toLowerCase();
-    
+    const email = emailInput?.value?.trim().toLowerCase();
+
     if (!email) {
         alert("Please enter a student's email.");
         return;
     }
 
-    if (!activeBatchId) {
-        alert("Error: No batch selected. Please reopen the modal.");
-        return;
-    }
-
     try {
-        const inviteData = {
-            email: email,
-            batchId: activeBatchId, // Now this will work!
+        const inviteRef = await addDoc(collection(db, "invitations"), {
+            email,
+            batchId, // 🔥 ALWAYS scoped correctly
             supervisorId: auth.currentUser.uid,
             status: "pending",
-            createdAt: new Date().toISOString()
-        };
-        // Add to a new 'invitations' collection
-        const inviteRef = await addDoc(collection(db, "invitations"), inviteData);
+            createdAt: serverTimestamp(),
+            usedBy: null,
+            usedAt: null
+        });
 
-        // 2. Generate the URL
-        // Note: Replace 'yourdomain.com' with your actual hosting domain (e.g., localhost:5500)
-        const baseUrl = window.location.origin; 
-        const inviteLink = `${baseUrl}/all-pov/register.html?inviteId=${inviteRef.id}&batchId=${activeBatchId}&advId=${auth.currentUser.uid}`;
+        const baseUrl = window.location.origin;
 
-        // 3. Display the link to the Supervisor
-        // You can replace this alert with a more sophisticated UI modal/copy-to-clipboard later
-        const confirmCopy = confirm(`Invitation generated for ${email}!\n\nClick OK to copy this link and send it to the student:\n${inviteLink}`);
-        
-        if (confirmCopy) {
-            await navigator.clipboard.writeText(inviteLink);
-            alert("Link copied to clipboard!");
+        const inviteLink =
+            `${baseUrl}/all-pov/register.html?inviteId=${inviteRef.id}`;
+
+        const output = document.getElementById("invite-link-output");
+        const field = document.getElementById("invite-link-field");
+
+        if (output && field) {
+            field.value = inviteLink;
+            output.style.display = "flex";
         }
 
+        await navigator.clipboard.writeText(inviteLink);
+
+        alert("Invite link generated & copied!");
+
         emailInput.value = "";
-    } catch (error) {
-        console.error("Error generating invite:", error);
-        alert("Failed to generate invitation.");
+
+    } catch (err) {
+        console.error(err);
+        alert("Failed to generate invite link.");
     }
 };
 
@@ -413,15 +479,35 @@ window.closeModal = function() {
     document.getElementById('createBatchForm').reset();
 };
 
+function clearStudentListeners() {
+    studentListeners.forEach(unsub => unsub());
+    studentListeners = [];
+}
+
 window.openStudentModal = function(batchId, batchName) {
+    clearStudentListeners();
     activeBatchId = batchId;
-    document.getElementById('currentBatchTitle').innerText = `Manage: ${batchName}`;
+    studentListeners.forEach(unsub => unsub());
+    studentListeners = [];
+
+    // reset old UI state (important)
+    const emailInput = document.getElementById('studentEmailSearch');
+    if (emailInput) emailInput.value = "";
+
+    const output = document.getElementById("invite-link-output");
+    if (output) output.style.display = "none";
+
+    document.getElementById('currentBatchTitle').innerText =
+        `Manage: ${sanitizeText(batchName)}`;
+
     document.getElementById('studentListModal').style.display = 'flex';
-    viewStudentList(batchId);
+
+    viewStudentList(batchId); 
 };
 
 window.closeStudentModal = function() {
     document.getElementById('studentListModal').style.display = 'none';
+    clearStudentListeners();
 
     studentListeners.forEach(unsub => unsub());
     studentListeners = [];
@@ -431,12 +517,14 @@ async function viewStudentList(batchId) {
     const listBody = document.getElementById('batchStudentList');
     listBody.innerHTML = "<tr><td colspan='6'>Loading students...</td></tr>";
 
-    // تنظيف previous listeners
     studentListeners.forEach(unsub => unsub());
     studentListeners = [];
 
     const batchSnap = await getDoc(doc(db, "batches", batchId));
-    const uids = batchSnap.data().studentUids || [];
+    const data = batchSnap.data();
+    let uids = data?.studentUids || [];
+
+    uids = await cleanInvalidStudents(batchId, uids);
 
     if (uids.length === 0) {
         listBody.innerHTML = "<tr><td colspan='6'>No students assigned.</td></tr>";
@@ -448,134 +536,152 @@ async function viewStudentList(batchId) {
     for (const uid of uids) {
 
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td colspan="6">Loading...</td>
-        `;
+        row.innerHTML = `<td colspan="6">Loading...</td>`;
         listBody.appendChild(row);
 
-        // Listen to user info (optional real-time)
         const userRef = doc(db, "users", uid);
 
-        const unsubUser = onSnapshot(userRef, async (userSnap) => {
+        const unsubUser = onSnapshot(userRef, (userSnap) => {
             if (!userSnap.exists()) return;
 
             const userData = userSnap.data();
 
-            // Listen to attendance + checklist in real-time
+            let latestAttSnap = null;
+            let latestDocSnap = null;
+
+            const processData = () => {
+                if (!latestAttSnap || !latestDocSnap) return;
+
+                let completedHours = 0;
+                let approvedDocs = 0;
+
+                const requiredHours = parseFloat(userData.requiredHours) || 600;
+                const TOTAL_DOCS_REQUIRED = 13;
+
+                latestAttSnap.forEach(d => {
+                    const log = d.data();
+                    if (normalizeStatus(log.status) === 'Approved') {
+                        completedHours += computeHoursDecimal(log.timeIn, log.timeOut);
+                    }
+                });
+
+                latestDocSnap.forEach(d => {
+                    if (normalizeStatus(d.data().status) === 'Approved') {
+                        approvedDocs++;
+                    }
+                });
+
+                const hoursPct = Math.min(100, (completedHours / requiredHours) * 100);
+                const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
+                const progress = Math.round((hoursPct + docsPct) / 2);
+
+                if (!document.body.contains(row)) return;
+
+                row.innerHTML = `
+                    <td><strong>${userData.firstName || ''} ${userData.surname || ''}</strong></td>
+                    <td>${userData.course || '-'}</td>
+                    <td>${userData.section || '-'}</td>
+                    <td>${completedHours.toFixed(1)} hrs</td>
+                    <td>
+                        <div style="width:100px; background:var(--bg-elevated); border-radius:6px; overflow:hidden; border: 1px solid rgba(255,255,255,0.1);">
+                            <div style="width:${progress}%; background:var(--brand-gold); height:8px;"></div>
+                        </div>
+                        <small>${progress}% Complete</small>
+                    </td>
+                    <td>
+                        <button onclick="removeStudent('${uid}')" class="btn-delete-small">Remove</button>
+                    </td>
+                `;
+            };
+
             const attQuery = query(collection(db, "attendance"), where("uid", "==", uid));
             const docQuery = query(collection(db, "checklist"), where("uid", "==", uid));
 
-            const unsubAttendance = onSnapshot(attQuery, async (attSnap) => {
-                const unsubChecklist = onSnapshot(docQuery, async (docSnap) => {
+            const unsubAttendance = onSnapshot(attQuery, (attSnap) => {
+                latestAttSnap = attSnap;
+                processData();
+            });
 
-                    let completedHours = 0;
-                    let approvedDocs = 0;
-
-                    const requiredHours = parseFloat(userData.requiredHours) || 600;
-                    const TOTAL_DOCS_REQUIRED = 13;
-
-                    attSnap.forEach(d => {
-                        const log = d.data();
-                        if (normalizeStatus(log.status) === 'Approved') {
-                            completedHours += computeHoursDecimal(log.timeIn, log.timeOut);
-                        }
-                    });
-
-                    docSnap.forEach(d => {
-                        if (normalizeStatus(d.data().status) === 'Approved') {
-                            approvedDocs++;
-                        }
-                    });
-
-                    const hoursPct = Math.min(100, (completedHours / requiredHours) * 100);
-                    const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
-                    const progress = Math.round((hoursPct + docsPct) / 2);
-
-                    // Update row
-                    row.innerHTML = `
-                        <td><strong>${userData.firstName || ''} ${userData.surname || ''}</strong></td>
-                        <td>${userData.course || '-'}</td>
-                        <td>${userData.section || '-'}</td>
-                        <td>${completedHours.toFixed(1)} hrs</td>
-                        <td>
-                            <div style="width:100px; background:var(--bg-elevated); border-radius:6px; overflow:hidden; border: 1px solid rgba(255,255,255,0.1);">
-                                <div style="width:${progress}%; background:var(--brand-gold); height:8px;"></div>
-                            </div>
-                            <small>${progress}% Complete</small>
-                        </td>
-                        <td>
-                            <button onclick="removeStudent('${uid}')" class="btn-delete-small">Remove</button>
-                        </td>
-                    `;
-                });
-
-                studentListeners.push(unsubChecklist);
+            const unsubChecklist = onSnapshot(docQuery, (docSnap) => {
+                latestDocSnap = docSnap;
+                processData();
             });
 
             studentListeners.push(unsubAttendance);
+            studentListeners.push(unsubChecklist);
         });
 
         studentListeners.push(unsubUser);
     }
 }
 
-window.removeStudent = async function(uid) {
-    if (confirm("Remove student from this batch?")) {
-        const batchRef = doc(db, "batches", activeBatchId);
-        await updateDoc(batchRef, {
-            studentUids: arrayRemove(uid)
-        });
-        viewStudentList(activeBatchId);
-        loadBatches(auth.currentUser.uid);
-    }
-};
-
 function closeModalById(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
 }
 
-// SAFE modal bindings
-document.addEventListener("DOMContentLoaded", () => {
+async function isStudentValid(uid) {
+    const snap = await getDoc(doc(db, "users", uid));
+    return snap.exists();
+}
 
-    // CREATE MODAL
-    document.getElementById("close-create-modal")?.addEventListener("click", () => {
-        closeModalById("createBatchModal");
-    });
+async function cleanInvalidStudents(batchId, studentUids) {
+    const results = await Promise.all(
+        studentUids.map(uid => getDoc(doc(db, "users", uid)))
+    );
 
-    document.getElementById("cancel-create-btn")?.addEventListener("click", () => {
-        closeModalById("createBatchModal");
-    });
+    const validUids = studentUids.filter((uid, i) => results[i].exists());
 
-    // STUDENT MODAL
-    document.getElementById("close-student-modal")?.addEventListener("click", () => {
-        closeModalById("studentListModal");
-    });
-
-    // CLICK OUTSIDE MODAL CLOSE
-    ["createBatchModal", "studentListModal"].forEach(id => {
-        const modal = document.getElementById(id);
-        modal?.addEventListener("click", (e) => {
-            if (e.target === modal) modal.style.display = "none";
+    if (validUids.length !== studentUids.length) {
+        await updateDoc(doc(db, "batches", batchId), {
+            studentUids: validUids
         });
-    });
 
-    // INVITE BUTTON FIX
-    document.getElementById("generateInviteBtn")?.addEventListener("click", (e) => {
-        e.preventDefault();
-        window.generateInviteLink?.();
-    });
+        console.log(`🧹 Cleaned invalid students in batch ${batchId}`);
+    }
 
-    // SIDEBAR BUTTON FIXES
-    document.getElementById("sidebar-theme-btn")?.addEventListener("click", () => {
-        document.documentElement.classList.toggle("dark-theme");
-        localStorage.setItem(
-            "ojtrack-theme",
-            document.documentElement.classList.contains("dark-theme") ? "dark" : "light"
-        );
-    });
+    return validUids;
+}
 
-    document.getElementById("sidebar-logout-btn")?.addEventListener("click", () => {
-        signOut(auth).then(() => location.replace("/index.html"));
-    });
-});
+window.removeStudent = async function(uid) {
+    if (!activeBatchId) {
+        alert("No active batch selected.");
+        return;
+    }
+
+    const confirmRemove = confirm("Remove this student from the batch?");
+    if (!confirmRemove) return;
+
+    try {
+        const batchRef = doc(db, "batches", activeBatchId);
+
+        await updateDoc(batchRef, {
+            studentUids: arrayRemove(uid)
+        });
+
+        alert("Student removed successfully.");
+
+        viewStudentList(activeBatchId);
+
+        if (auth.currentUser) {
+            loadBatches(auth.currentUser.uid);
+        }
+
+    } catch (err) {
+        console.error("Error removing student:", err);
+        alert("Failed to remove student.");
+    }
+};
+
+async function removeStudentFromAllBatches(uid) {
+    const q = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
+    const snap = await getDocs(q);
+
+    const updates = snap.docs.map(d =>
+        updateDoc(doc(db, "batches", d.id), {
+            studentUids: arrayRemove(uid)
+        })
+    );
+
+    await Promise.all(updates);
+}

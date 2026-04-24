@@ -18,7 +18,8 @@ import { setupNotificationSystem,
 initTheme();
 
 let currentMonth = new Date();
-let userData     = null;
+let userData  = null;
+let attendanceUnsub = null;
 
 // ─── AUTH ────────────────────────────────────────────────────
 protectPage('student').then((user) => {
@@ -35,7 +36,7 @@ function initDashboard(user) {
 
     loadUserProfile(user);
     setupNotificationSystem(user.uid);
-    syncAttendanceLogs(user.uid);
+
     renderCalendar(currentMonth);
 }
 
@@ -48,13 +49,16 @@ function setupLogoutButtons() {
         });
     });
 }
-
 // ─── USER PROFILE ────────────────────────────────────────────
 async function loadUserProfile(user) {
     try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (!snap.exists()) return;
         userData = snap.data();
+        userData.batchId = userData.batchId || userData.batch || null;
+
+        const hasBatch = !!(userData.batchId || userData.batch);
+        
 
         // ✅ FIX: schema uses 'surname' not 'lastName'
         const name = userData.name
@@ -65,8 +69,20 @@ async function loadUserProfile(user) {
 
         const hour = new Date().getHours();
         const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-        setEl('greeting-text', `${greeting}, ${userData.firstName || name}!`);
-        setEl('greeting-sub',  `${userData.course || 'OJT'} Student · ${userData.company || 'No company set'}`);
+
+        setEl(
+        'greeting-text',
+        hasBatch
+            ? `${greeting}, ${userData.firstName || name}!`
+            : `Welcome, ${userData.firstName || name}!`
+        );
+
+        setEl(
+        'greeting-sub',
+        hasBatch
+            ? `${userData.course || 'OJT'} Student · ${userData.company || 'No company set'}`
+            : `Waiting for batch assignment`
+        );
 
         // Info strip
         setEl('chip-company', `🏢 ${userData.company || 'No company set'}`);
@@ -74,11 +90,41 @@ async function loadUserProfile(user) {
         setEl('chip-course',  `🎓 ${userData.course || '—'} · ${userData.fullSection || userData.section || '—'}`);
 
         updateProgressStats(userData);
-        loadFeedback(user.uid);
+
+        if (hasBatch) {
+            loadFeedback(user.uid);
+            syncAttendanceLogs(user.uid);
+        }
 
     } catch (err) {
         console.error('[Dashboard] loadUserProfile error:', err);
     }
+}
+
+function showNoBatchState(user, data) {
+    const name =
+        data?.name ||
+        `${data?.firstName || ''} ${data?.surname || ''}`.trim() ||
+        'Student';
+
+    populateHeaderUser(name, user.email);
+
+    const main = document.querySelector('.dashboard-main') || document.body;
+
+    function showNoBatchState(user, data) {
+    const name =
+        data?.name ||
+        `${data?.firstName || ''} ${data?.surname || ''}`.trim() ||
+        'Student';
+
+    populateHeaderUser(name, user.email);
+
+    setEl('chip-company', `🏢 Not assigned`);
+    setEl('chip-school', `📁 Pending batch`);
+    setEl('chip-course', `🎓 Awaiting assignment`);
+
+    setEl('greeting-sub', 'Waiting for adviser batch assignment');
+}
 }
 
 // ─── PROGRESS STATS ──────────────────────────────────────────
@@ -127,7 +173,8 @@ function animateProgressRing(pct) {
 
 // ─── ATTENDANCE LOGS ──────────────────────────────────────────
 function syncAttendanceLogs(uid) {
-    // ✅ FIX: 'uid' field not 'userId'; 'timestamp' not 'createdAt'
+ if (attendanceUnsub) attendanceUnsub();
+
     const q = query(
         collection(db, 'attendance'),
         where('uid', '==', uid),
@@ -135,7 +182,7 @@ function syncAttendanceLogs(uid) {
         limit(10),
     );
 
-    onSnapshot(q, (snap) => {
+    attendanceUnsub = onSnapshot(q, (snap) => {
         const tbody = document.getElementById('logs-tbody');
         if (!tbody) return;
 

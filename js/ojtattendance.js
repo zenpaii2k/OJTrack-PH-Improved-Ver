@@ -21,9 +21,11 @@ let currentCalMonth = new Date();
 let userData = null;
 let loggedDateMap = new Map(); // key → status
 
+let attendanceUnsub = null;
+
 // ─── AUTH ────────────────────────────────────────────────────
-protectPage('student').then((user) => {
-    // ✅ Wire BOTH theme toggle buttons
+protectPage('student').then(async (user) => {
+
     setupThemeToggle('theme-toggle-btn');
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
@@ -31,7 +33,10 @@ protectPage('student').then((user) => {
     setupNotificationSystem(user.uid);
     setupLogout();
 
-    loadUserProfile(user);
+    const isValid = await loadUserProfile(user);
+
+    if (!isValid) return;
+
     listenToAttendanceLogs(user.uid);
     renderCalendar(currentCalMonth);
     setupCalendarNav();
@@ -40,7 +45,6 @@ protectPage('student').then((user) => {
     setupHoursPreview();
     setupFileLabel();
 
-    // Date header
     const dateEl = document.getElementById('current-date-display');
     if (dateEl) {
         dateEl.textContent = `📅 ${new Date().toLocaleDateString('en-PH', {
@@ -62,15 +66,32 @@ async function loadUserProfile(user) {
     try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (!snap.exists()) return;
+
         userData = snap.data();
+
+        const batchId = userData?.batchId || userData?.batch || null;
+
+        if (!batchId) {
+            showNoBatchState(user, userData);
+            return false;
+        }
+
         const name = userData.name
             || `${userData.firstName || ''} ${userData.surname || ''}`.trim()
             || 'Student';
+
         populateHeaderUser(name, user.email);
-        updateSummary(parseFloat(userData.hoursCompleted) || 0,
-                      parseFloat(userData.requiredHours)  || 600);
+
+        updateSummary(
+            parseFloat(userData.hoursCompleted) || 0,
+            parseFloat(userData.requiredHours) || 600
+        );
+
+        return true; // ✅ valid student
+
     } catch (e) {
         console.error('[Attendance] loadUserProfile:', e);
+        return false;
     }
 }
 
@@ -175,9 +196,14 @@ function setupForm(user) {
            const userSnap = await getDoc(doc(db, "users", user.uid));
             const userData = userSnap.data();
 
+            if (!batchId) {
+                showError("You are not assigned to any batch.");
+                return;
+            }
+
             console.log("USER DATA:", userData);
 
-            const batchId = userData?.batch;
+            const batchId = userData?.batchId || userData?.batch || null;
             console.log("BATCH ID:", batchId);
 
             if (!batchId) {
@@ -258,6 +284,31 @@ function setupForm(user) {
     });
 }
 
+function showNoBatchState(user, data) {
+    const name =
+        data?.name ||
+        `${data?.firstName || ''} ${data?.surname || ''}`.trim() ||
+        'Student';
+
+    populateHeaderUser(name, user.email);
+
+    const main = document.querySelector('.dashboard-main') || document.body;
+
+    main.innerHTML = `
+        <div style="text-align:center; padding:60px 20px;">
+            <h2 style="margin-bottom:10px;">No Batch Assigned</h2>
+            <p style="color:var(--text-muted); max-width:500px; margin:auto;">
+                Your account is active, but you are not currently assigned to any batch.
+                Please wait for your adviser to assign you.
+            </p>
+
+            <div style="margin-top:25px; font-size:0.9rem; color:var(--text-muted);">
+                If you believe this is a mistake, contact your adviser or school administrator.
+            </div>
+        </div>
+    `;
+}
+
 // Ensure month and day are correctly padded for comparison
 function makeDateKey(date) {
     const y = date.getFullYear();
@@ -269,6 +320,8 @@ function makeDateKey(date) {
 
 // ─── REALTIME LOG LISTENER ────────────────────────────────────
 function listenToAttendanceLogs(uid) {
+     if (attendanceUnsub) attendanceUnsub();
+
     const q = query(
         collection(db, 'attendance'),
         where('uid', '==', uid),
@@ -276,7 +329,7 @@ function listenToAttendanceLogs(uid) {
         limit(60)
     );
 
-    onSnapshot(q, (snap) => {
+    attendanceUnsub = onSnapshot(q, (snap) => {
         const listEl = document.getElementById('log-list');
         loggedDateMap.clear();
 

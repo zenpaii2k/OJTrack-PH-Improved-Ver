@@ -49,6 +49,7 @@ import {
     writeBatch,
     serverTimestamp,
     getDocs,
+    getDoc,
     deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
@@ -259,6 +260,25 @@ export async function markAllRead(userId) {
  * @returns {Promise<string>} The new notification document ID
  */
 
+async function isStudentStillValid(recipientUid) {
+    try {
+        const userRef = doc(db, "users", recipientUid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) return false;
+
+        const userData = userSnap.data();
+
+        // ✅ If student has no batch → considered removed
+        if (!userData.batch) return false;
+
+        return true;
+    } catch (err) {
+        console.error("[Notifications] validation error:", err);
+        return false;
+    }
+}
+
 export async function sendNotification({
     recipientUid,
     title,
@@ -273,7 +293,14 @@ export async function sendNotification({
         throw new Error('[Notifications] recipientUid and title are required.');
     }
 
-    // Input length caps (prevent abuse)
+    // ✅ NEW: prevent sending to removed students
+    const isValid = await isStudentStillValid(recipientUid);
+
+    if (!isValid) {
+        console.warn("[Notifications] Skipped (user not in batch):", recipientUid);
+        return null;
+    }
+
     const safeTitle  = String(title).slice(0, 120);
     const safeBody   = String(body  || '').slice(0, 500);
     const safeSender = String(senderName).slice(0, 80);

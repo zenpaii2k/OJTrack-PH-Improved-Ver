@@ -71,14 +71,51 @@ async function loadUserProfile(user) {
     try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (!snap.exists()) return;
+
         const data = snap.data();
-        const name = data.name
-            || `${data.firstName || ''} ${data.surname || ''}`.trim()
-            || 'Student';
+
+        const batchId = data?.batchId || data?.batch || null;
+
+        if (!batchId) {
+            showNoBatchState(user, data);
+            return;
+        }
+
+        const name =
+            data.name ||
+            `${data.firstName || ''} ${data.surname || ''}`.trim() ||
+            'Student';
+
         populateHeaderUser(name, user.email);
+
     } catch (e) {
         console.error('[Checklist] loadUserProfile:', e);
     }
+}
+
+function showNoBatchState(user, data) {
+    const name =
+        data?.name ||
+        `${data?.firstName || ''} ${data?.surname || ''}`.trim() ||
+        'Student';
+
+    populateHeaderUser(name, user.email);
+
+    const main = document.querySelector('.dashboard-main') || document.body;
+
+    main.innerHTML = `
+        <div style="text-align:center; padding:60px 20px;">
+            <h2 style="margin-bottom:10px;">No Batch Assigned</h2>
+            <p style="color:var(--text-muted); max-width:500px; margin:auto;">
+                Your account is active, but you are not currently assigned to any batch.
+                Please wait for your adviser to assign you.
+            </p>
+
+            <div style="margin-top:25px; font-size:0.9rem; color:var(--text-muted);">
+                If you believe this is a mistake, contact your adviser or school administrator.
+            </div>
+        </div>
+    `;
 }
 
 // ─── LISTEN TO CHECKLIST ──────────────────────────────────────
@@ -141,6 +178,8 @@ function renderChecklistRow(opt, tbody, uid) {
     const isLocked  = data && (data.status === 'Pending Approval' || data.status === 'Approved');
     const remarks   = data && data.remarks && data.remarks !== 'Waiting for review'
         ? `<p class="remark-text">📝 ${sanitizeText(data.remarks)}</p>` : '';
+        
+    const formKeys = new Set(docOptions["Forms"].map(f => f.val));
 
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -156,7 +195,7 @@ function renderChecklistRow(opt, tbody, uid) {
                     ? `<button class="btn-icon-view" onclick="previewDoc('${data.docId}')" title="View Document">👁️ View</button>`
                     : ''}
                 ${!isLocked
-                    ? `<button class="btn-icon-upload" onclick="openUploadModal('${opt.val === docOptions['Forms'].find(f=>f.val===opt.val)?.val ? 'Forms' : 'Requirements'}', '${opt.val}')" title="Upload">📤 Upload</button>`
+                    ? `<button class="btn-icon-upload"onclick="openUploadModal('${formKeys.has(opt.val) ? 'Forms' : 'Requirements'}', '${opt.val}')" title="Upload">📤 Upload</button>`
                     : `<span style="font-size:0.75rem;color:var(--text-muted);">🔒 ${sanitizeText(status)}</span>`}
             </div>
         </td>`;
@@ -212,6 +251,13 @@ window.processUpload = async () => {
     const selectedForm = document.getElementById('formSelector').value;
     const fileInput    = document.getElementById('fileInput');
 
+    const batchId = userData?.batchId || userData?.batch || null;
+
+    if (!batchId) {
+        alert("You are no longer assigned to a batch.");
+        return;
+    }
+
     if (!fileInput.files[0]) return alert("Please select a file!");
     if (!user) return alert("Not authenticated.");
 
@@ -237,7 +283,7 @@ window.processUpload = async () => {
 
             console.log("USER DATA:", userData);
 
-            const batchId = userData?.batch;
+            const batchId = userData?.batchId || userData?.batch || null;
             console.log("BATCH ID:", batchId);
 
             if (!batchId) {
@@ -304,7 +350,7 @@ window.processUpload = async () => {
             );
         }
 
-        alert("File submitted successfully!");
+        showToast("Document submitted and sent to your adviser.");
         document.getElementById('uploadModal').style.display = 'none';
         fileInput.value = '';
 
