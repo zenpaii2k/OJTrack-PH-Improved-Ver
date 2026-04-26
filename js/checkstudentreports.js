@@ -26,13 +26,29 @@ let currentReportPdf = null;
 protectPage('supervisor');
 
 onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.replace("/index.html"); return; }
 
     setupThemeToggle('theme-toggle-btn');
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
     setupNotifDropdown();
     setupNotificationSystem(user.uid);
+
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const confirmed = confirm("Do you really want to log out?");
+        if (!confirmed) return;
+
+        try {
+            await signOut(auth);
+            window.location.replace('/index.html');
+        } catch (err) {
+            console.error("Logout failed:", err);
+            alert("Unable to log out. Please try again.");
+        }
+    });
+});
 
     await fetchUserProfile(user);
 
@@ -479,57 +495,64 @@ function generateAdviserPreview(reportData) {
     });
 
     // 6. SIGNATURE SECTION (Professional look)
-    const signY = pdfdoc.lastAutoTable.finalY + 40; 
-    pdfdoc.setTextColor(0, 0, 0);
-    pdfdoc.line(14, signY, 80, signY); 
-    pdfdoc.line(130, signY, 196, signY); 
+     const signY = pdfdoc.lastAutoTable.finalY + 20;
+
+    // ─── CERTIFICATION MESSAGE (FIXED POSITION) ───
+    const certMessage =
+        "I hereby certify that the information provided in this report is true and accurate to the best of my knowledge, representing the actual hours rendered and requirements submitted for the OJT/practicum program.";
+
+    const splitMessage = pdfdoc.splitTextToSize(certMessage, 180);
+
+    // place message BEFORE signatures
+    pdfdoc.setFont("helvetica", "bolditalic");
+    pdfdoc.setFontSize(10);
+
+    pdfdoc.text(splitMessage, 14, signY);
+
+    // adjust signature position BELOW message
+    const signatureY = signY + (splitMessage.length * 5) + 10;
+
+    // ─── SIGNATURE LINES ───
+    pdfdoc.setDrawColor(0);
+    pdfdoc.line(14, signatureY, 80, signatureY);
+    pdfdoc.line(130, signatureY, 196, signatureY);
+
     pdfdoc.setFont("helvetica", "bold");
-    pdfdoc.text("Student Signature", 47, signY + 5, { align: "center" });
-    pdfdoc.text("Adviser Signature", 163, signY + 5, { align: "center" });
+    pdfdoc.text("Student Signature", 47, signatureY + 5, { align: "center" });
+    pdfdoc.text("Adviser Signature", 163, signatureY + 5, { align: "center" });
 
     window._latestPdf = pdfdoc;
 
-    // safer mobile detection
+    const blob = pdfdoc.output('blob');
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Desktop ONLY: show modal preview
     const isMobile =
-        window.matchMedia("(max-width: 768px)").matches ||
         /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    // ALWAYS render iframe first (desktop + mobile)
-    const iframe = document.getElementById('adviser-pdf-preview');
+    if (!isMobile) {
+        const iframe = document.getElementById('adviser-pdf-preview');
 
-    const blob = pdfdoc.output('blob');
+        if (iframe) {
+            if (iframe.dataset.blobUrl) {
+                URL.revokeObjectURL(iframe.dataset.blobUrl);
+            }
 
-    if (iframe) {
-        if (iframe.dataset.blobUrl) {
-            URL.revokeObjectURL(iframe.dataset.blobUrl);
+            iframe.src = blobUrl;
+            iframe.dataset.blobUrl = blobUrl;
         }
 
-        const blobUrl = URL.createObjectURL(blob);
-        iframe.src = blobUrl;
-        iframe.dataset.blobUrl = blobUrl;
+        return pdfdoc;
     }
 
-    // ONLY mobile opens new tab (optional fallback view)
-    if (isMobile) {
-        const pdfDataUrl = pdfdoc.output('dataurlstring');
+const newTab = window.open(blobUrl, "_blank");
 
-        const newTab = window.open("", "_blank");
-        if (newTab) {
-            newTab.document.write(`
-                <html>
-                    <head><title>OJT Report</title></head>
-                    <body style="margin:0">
-                        <iframe style="border:none;width:100%;height:100vh"
-                            src="${pdfDataUrl}">
-                        </iframe>
-                    </body>
-                </html>
-            `);
-            newTab.document.close();
-        }
-    }
-
-    return pdfdoc;
+if (!newTab) {
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.target = "_blank";
+    a.click();
+}
 }
 
 // --- CORE ACTIONS ---

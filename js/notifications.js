@@ -260,7 +260,7 @@ export async function markAllRead(userId) {
  * @returns {Promise<string>} The new notification document ID
  */
 
-async function isStudentStillValid(recipientUid) {
+async function isUserValid(recipientUid) {
     try {
         const userRef = doc(db, "users", recipientUid);
         const userSnap = await getDoc(userRef);
@@ -269,16 +269,18 @@ async function isStudentStillValid(recipientUid) {
 
         const userData = userSnap.data();
 
-        // ✅ If student has no batch → considered removed
-        if (!userData.batch) return false;
+        if (userData.role === 'adviser' || userData.role === 'supervisor' || userData.role === 'teacher') {
+            return true;
+        }
 
-        return true;
+        const batchId = userData?.batchId || userData?.batch || null;
+        return !!batchId;
+
     } catch (err) {
         console.error("[Notifications] validation error:", err);
         return false;
     }
 }
-
 export async function sendNotification({
     recipientUid,
     title,
@@ -293,38 +295,40 @@ export async function sendNotification({
         throw new Error('[Notifications] recipientUid and title are required.');
     }
 
-    // ✅ NEW: prevent sending to removed students
-    const isValid = await isStudentStillValid(recipientUid);
+    let shouldValidateStudent = false;
 
-    if (!isValid) {
-        console.warn("[Notifications] Skipped (user not in batch):", recipientUid);
-        return null;
+    try {
+        const userSnap = await getDoc(doc(db, "users", recipientUid));
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            shouldValidateStudent = userData?.role === 'student';
+        }
+    } catch {}
+
+    if (shouldValidateStudent) {
+        const isValid = await isStudentStillValid(recipientUid);
+
+        if (!isValid) {
+            console.warn("[Notifications] Skipped (student not in batch):", recipientUid);
+            return null;
+        }
     }
-
-    const safeTitle  = String(title).slice(0, 120);
-    const safeBody   = String(body  || '').slice(0, 500);
-    const safeSender = String(senderName).slice(0, 80);
 
     const payload = {
         recipientUid,
-        title:        safeTitle,
-        body:         safeBody,
+        title: String(title).slice(0, 120),
+        body: String(body || '').slice(0, 500),
         type,
         category,
-        senderName:   safeSender,
-        isRead:       false,
-        createdAt:    serverTimestamp(),
+        senderName: String(senderName).slice(0, 80),
+        isRead: false,
+        createdAt: serverTimestamp(),
         ...(relatedDocId && { relatedDocId }),
-        ...(relatedUrl   && { relatedUrl }),
+        ...(relatedUrl && { relatedUrl }),
     };
 
-    try {
-        const ref = await addDoc(collection(db, COLLECTION), payload);
-        return ref.id;
-    } catch (e) {
-        console.error('[Notifications] sendNotification error:', e);
-        throw e;
-    }
+    const ref = await addDoc(collection(db, COLLECTION), payload);
+    return ref.id;
 }
 
 // ─── CONVENIENCE SENDERS ─────────────────────────────────────
@@ -390,7 +394,7 @@ export function notifySystem(recipientUid, title, body) {
 /**
  * Student submitted attendance log → notify adviser
  */
-export function notifyLogSubmittedToAdviser(adviserUid, studentName, date) {
+export function notifyLogSubmittedToAdviser(adviserUid, studentName, date, batchId) {
     return sendNotification({
         recipientUid: adviserUid,
         title: 'New Attendance Log Submitted 📄',
@@ -399,6 +403,7 @@ export function notifyLogSubmittedToAdviser(adviserUid, studentName, date) {
         category: 'attendance',
         senderName: studentName,
         relatedUrl: '/supervisor/checkstudentdatabase.html',
+        relatedDocId: batchId || null 
     });
 }
 

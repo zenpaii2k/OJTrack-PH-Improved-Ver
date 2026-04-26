@@ -34,7 +34,6 @@ let activeBatchId = null;
 let currentMonth = new Date();
 let studentListeners = [];
 
-// --- 2. AUTH LISTENER ---
 protectPage('supervisor').then((user) => {
     if (!user) return;
 
@@ -44,15 +43,30 @@ protectPage('supervisor').then((user) => {
     setupNotifDropdown();
     setupNotificationSystem(user.uid);
 
-    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
-        document.getElementById(id)?.addEventListener('click', () =>
-            signOut(auth).then(() => location.replace("/index.html"))
-        );
-    });
+    setupLogout();
 
     fetchUserProfile(user);
     loadBatches(user.uid);
 });
+
+function setupLogout() {
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const confirmed = confirm("Do you really want to log out?");
+            if (!confirmed) return;
+
+            try {
+                await signOut(auth);
+                window.location.replace('/index.html');
+            } catch (err) {
+                console.error("Logout failed:", err);
+                alert("Unable to log out. Please try again.");
+            }
+        });
+    });
+}
 
 function initCombinedRealTimeDashboard(user, batchRef, uid) {
     updateTotalStats(user).then((uids) => {
@@ -280,10 +294,6 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     });
 
-    document.getElementById("sidebar-logout-btn")?.addEventListener("click", () => {
-        signOut(auth).then(() => location.replace("/index.html"));
-    });
-
 });
 
 // --- CORE FUNCTIONS ---
@@ -429,7 +439,7 @@ window.generateInviteLink = async function(batchIdOverride) {
     }
 
     const emailInput = document.getElementById('studentEmailSearch');
-    const email = emailInput?.value?.trim().toLowerCase();
+    const email = (emailInput?.value || "").trim().toLowerCase();
 
     if (!email) {
         alert("Please enter a student's email.");
@@ -460,7 +470,15 @@ window.generateInviteLink = async function(batchIdOverride) {
             output.style.display = "flex";
         }
 
-        await navigator.clipboard.writeText(inviteLink);
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(inviteLink);
+            } else {
+                fallbackCopy(inviteLink);
+            }
+        } catch (err) {
+            fallbackCopy(inviteLink);
+        }
 
         alert("Invite link generated & copied!");
 
@@ -472,7 +490,20 @@ window.generateInviteLink = async function(batchIdOverride) {
     }
 };
 
-// --- MODAL & STUDENT CONTROLS (ATTACHED TO WINDOW) ---
+function fallbackCopy(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+        document.execCommand("copy");
+    } catch (err) {
+        console.warn("Fallback copy failed:", err);
+    }
+
+    document.body.removeChild(textarea);
+}
 
 window.closeModal = function() {
     document.getElementById('createBatchModal').style.display = 'none';
@@ -654,9 +685,16 @@ window.removeStudent = async function(uid) {
 
     try {
         const batchRef = doc(db, "batches", activeBatchId);
+        const userRef = doc(db, "users", uid);
 
+        // 1. Remove student from batch
         await updateDoc(batchRef, {
             studentUids: arrayRemove(uid)
+        });
+
+        await updateDoc(userRef, {
+            batch: "",
+            supervisorId: ""
         });
 
         alert("Student removed successfully.");

@@ -36,10 +36,21 @@ protectPage('student').then((user) => {
     loadUserProfile(user);
 
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
-        document.getElementById(id)?.addEventListener('click', () =>
-            signOut(auth).then(() => window.location.replace('/index.html'))
-        );
+    document.getElementById(id)?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const confirmed = confirm("Do you really want to log out?");
+        if (!confirmed) return;
+
+        try {
+            await signOut(auth);
+            window.location.replace('/index.html');
+        } catch (err) {
+            console.error("Logout failed:", err);
+            alert("Unable to log out. Please try again.");
+        }
     });
+});
 
     listenForReportStatus(user.uid);
     compileFullData(user.uid);
@@ -358,58 +369,67 @@ function generateAdviserPreview(data) {
         }
     });
 
-    // 6. SIGNATURE SECTION (Professional look)
-    const signY = pdf.lastAutoTable.finalY + 40; 
-    pdf.setTextColor(0, 0, 0);
-    pdf.line(14, signY, 80, signY); 
-    pdf.line(130, signY, 196, signY); 
+   // 6. SIGNATURE SECTION (move down properly)
+    const signY = pdf.lastAutoTable.finalY + 20;
+
+    // ─── CERTIFICATION MESSAGE (FIXED POSITION) ───
+    const certMessage =
+        "I hereby certify that the information provided in this report is true and accurate to the best of my knowledge, representing the actual hours rendered and requirements submitted for the OJT/practicum program.";
+
+    const splitMessage = pdf.splitTextToSize(certMessage, 180);
+
+    // place message BEFORE signatures
+    pdf.setFont("helvetica", "bolditalic");
+    pdf.setFontSize(10);
+
+    pdf.text(splitMessage, 14, signY);
+
+    // adjust signature position BELOW message
+    const signatureY = signY + (splitMessage.length * 5) + 10;
+
+    // ─── SIGNATURE LINES ───
+    pdf.setDrawColor(0);
+    pdf.line(14, signatureY, 80, signatureY);
+    pdf.line(130, signatureY, 196, signatureY);
+
     pdf.setFont("helvetica", "bold");
-    pdf.text("Student Signature", 47, signY + 5, { align: "center" });
-    pdf.text("Adviser Signature", 163, signY + 5, { align: "center" });
+    pdf.text("Student Signature", 47, signatureY + 5, { align: "center" });
+    pdf.text("Adviser Signature", 163, signatureY + 5, { align: "center" });
 
     window._latestPdf = pdf;
 
     // safer mobile detection
+    const blob = pdf.output('blob');
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Desktop ONLY: show modal preview
     const isMobile =
-        window.matchMedia("(max-width: 768px)").matches ||
         /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    // ALWAYS render iframe first (desktop + mobile)
-    const iframe = document.getElementById('adviser-pdf-preview');
+    if (!isMobile) {
+        const iframe = document.getElementById('adviser-pdf-preview');
 
-    const blob = pdf.output('blob');
+        if (iframe) {
+            if (iframe.dataset.blobUrl) {
+                URL.revokeObjectURL(iframe.dataset.blobUrl);
+            }
 
-    if (iframe) {
-        if (iframe.dataset.blobUrl) {
-            URL.revokeObjectURL(iframe.dataset.blobUrl);
+            iframe.src = blobUrl;
+            iframe.dataset.blobUrl = blobUrl;
         }
 
-        const blobUrl = URL.createObjectURL(blob);
-        iframe.src = blobUrl;
-        iframe.dataset.blobUrl = blobUrl;
-    }
+        return pdf;
+}
 
-    // ONLY mobile opens new tab (optional fallback view)
-    if (isMobile) {
-        const pdfDataUrl = pdf.output('dataurlstring');
+// Mobile ONLY: open new tab
+const newTab = window.open(blobUrl, "_blank");
 
-        const newTab = window.open("", "_blank");
-        if (newTab) {
-            newTab.document.write(`
-                <html>
-                    <head><title>OJT Report</title></head>
-                    <body style="margin:0">
-                        <iframe style="border:none;width:100%;height:100vh"
-                            src="${pdfDataUrl}">
-                        </iframe>
-                    </body>
-                </html>
-            `);
-            newTab.document.close();
-        }
-    }
-
-    return pdf;
+if (!newTab) {
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.target = "_blank";
+    a.click();
+}
 }
 
 function previewReport() {

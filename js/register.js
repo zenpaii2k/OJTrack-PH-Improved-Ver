@@ -384,6 +384,9 @@ function hideBannerError() {
     errBanner.textContent = '';
 }
 
+let authMode = "register"; 
+// "login" | "register" | "invite"
+
 // ─── FORM SUBMIT ─────────────────────────────────────────────
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -480,6 +483,77 @@ form.addEventListener('submit', async (e) => {
         setLoading(false);
     }
 });
+
+function buildStudentPayload(uid, email) {
+    const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
+    const surname   = sanitizeInput(document.getElementById('reg-surname').value);
+
+    const school  = sanitizeInput(document.getElementById('std-school')?.value);
+    const course  = document.getElementById('std-course')?.value;
+    const year    = document.getElementById('std-year')?.value;
+    const section = sanitizeInput(document.getElementById('std-section')?.value);
+    const company = sanitizeInput(document.getElementById('std-company')?.value);
+    const requiredHours = Number(document.getElementById('std-total-hours')?.value || 0);
+
+    const timeStart = document.getElementById('std-start')?.value || null;
+    const timeEnd   = document.getElementById('std-end')?.value || null;
+
+    const fullSection = course && section ? `${course}-${section}` : section;
+
+    return {
+        uid,
+
+        // ─── CORE USER ─────────────────────
+        role: currentRole,
+        email,
+        firstName,
+        surname,
+        name: `${firstName} ${surname}`,
+
+        // ─── ACADEMIC ──────────────────────
+        school,
+        course,
+        yearLevel: year,
+        section,
+        fullSection,
+        company,
+        requiredHours,
+
+        // ─── TRACKING ──────────────────────
+        hoursCompleted: 0,
+        currentSessionId: null,
+
+        timeStart,
+        timeEnd,
+
+        // ─── INVITE / BATCH ────────────────
+        batch: inviteData?.batchId ?? null,
+        supervisorId: inviteData?.supervisorId ?? null,
+
+        // ─── SYSTEM ────────────────────────
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+}
+
+const uid = authUser.uid;
+const email = authUser.email;
+
+// ALWAYS BUILD FULL OBJECT FIRST
+const payload =
+    currentRole === "student"
+        ? buildStudentPayload(uid, email)
+        : buildSupervisorPayload(uid, email);
+
+// SINGLE WRITE ONLY (NO updateDoc AFTER THIS)
+await setDoc(doc(db, "users", uid), payload, { merge: true });
+
+// Handle invite batch ONLY AFTER main write
+if (inviteId && inviteData?.batchId) {
+    await updateDoc(doc(db, "batches", inviteData.batchId), {
+        studentUids: arrayUnion(uid)
+    });
+}
 
 function showReRegModal(userData) {
     const modal = document.getElementById("reRegModal");

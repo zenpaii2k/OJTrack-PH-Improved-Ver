@@ -30,10 +30,21 @@ protectPage('supervisor').then((user) => {
 
     // ✅ FIX: Wire both logout buttons
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
-        document.getElementById(id)?.addEventListener('click', () =>
-            signOut(auth).then(() => window.location.replace('/index.html'))
-        );
+    document.getElementById(id)?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const confirmed = confirm("Do you really want to log out?");
+        if (!confirmed) return;
+
+        try {
+            await signOut(auth);
+            window.location.replace('/index.html');
+        } catch (err) {
+            console.error("Logout failed:", err);
+            alert("Unable to log out. Please try again.");
+        }
     });
+});
 
     loadSupervisorData(user);
     setupTabNavigation(user);

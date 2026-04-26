@@ -16,7 +16,6 @@ import { setupNotificationSystem,
   sendNotification,
   markAllRead,
   clearAllNotifications, notifyDocumentApproved, notifyDocumentRejected} from '../js/notifications.js';
-import '/js/ui-bootstrap.js';
 
 initTheme();
 
@@ -30,10 +29,33 @@ onAuthStateChanged(auth, async (user) => {
         setupNotificationSystem(user.uid);      
         await fetchUserProfile(user);
         await initializeSupervisorData(user.uid);
+
+        // ✅ PUT LOGOUT CONFIRMATION HERE
+        setupLogout();
+
     } else {
         location.replace("/index.html");
     }
 });
+
+function setupLogout() {
+    ['logout-link', 'sidebar-logout-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const confirmed = confirm("Do you really want to log out?");
+            if (!confirmed) return;
+
+            try {
+                await signOut(auth);
+                window.location.replace('/index.html');
+            } catch (err) {
+                console.error("Logout failed:", err);
+                alert("Unable to log out. Please try again.");
+            }
+        });
+    });
+}
 
 let currentDocId = null;
 let currentDocStatus = null;

@@ -7,7 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     initTheme, setupThemeToggle, setupProfileDropdown,
-    setupNotifDropdown, populateHeaderUser, sanitizeText
+    setupNotifDropdown, populateHeaderUser, sanitizeText, showToast
 } from '../js/theme.js';
 import {  setupNotificationSystem,
   sendNotification,
@@ -58,10 +58,21 @@ protectPage('student').then((user) => {
 
     // ✅ Wire logout for both buttons
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
-        document.getElementById(id)?.addEventListener('click', () =>
-            signOut(auth).then(() => window.location.replace('/index.html'))
-        );
+    document.getElementById(id)?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const confirmed = confirm("Do you really want to log out?");
+        if (!confirmed) return;
+
+        try {
+            await signOut(auth);
+            window.location.replace('/index.html');
+        } catch (err) {
+            console.error("Logout failed:", err);
+            alert("Unable to log out. Please try again.");
+        }
     });
+});
 
     listenToChecklist(user.uid);
 });
@@ -247,24 +258,16 @@ document.getElementById('btn-close-preview').onclick = () => {
 };
 
 window.processUpload = async () => {
-    const user         = auth.currentUser;
+    const user = auth.currentUser;
     const selectedForm = document.getElementById('formSelector').value;
-    const fileInput    = document.getElementById('fileInput');
+    const fileInput = document.getElementById('fileInput');
 
-    const batchId = userData?.batchId || userData?.batch || null;
-
-    if (!batchId) {
-        alert("You are no longer assigned to a batch.");
-        return;
-    }
-
-    if (!fileInput.files[0]) return alert("Please select a file!");
     if (!user) return alert("Not authenticated.");
+    if (!fileInput.files[0]) return alert("Please select a file!");
 
     const existingDoc = currentStudentDocs[selectedForm];
     if (existingDoc && (existingDoc.status === "Pending Approval" || existingDoc.status === "Approved")) {
-        alert("This document is already under review or approved.");
-        return;
+        return alert("This document is already under review or approved.");
     }
 
     if (fileInput.files[0].size > 5 * 1024 * 1024) {
@@ -278,37 +281,35 @@ window.processUpload = async () => {
     }
 
     try {
+        // ✅ FETCH USER DATA FIRST
         const userSnap = await getDoc(doc(db, "users", user.uid));
-            const userData = userSnap.data();
+        if (!userSnap.exists()) {
+            throw new Error("User data not found.");
+        }
 
-            console.log("USER DATA:", userData);
+        const userData = userSnap.data();
 
-            const batchId = userData?.batchId || userData?.batch || null;
-            console.log("BATCH ID:", batchId);
+        const batchId = userData?.batchId || userData?.batch || null;
+        if (!batchId) {
+            alert("You are not assigned to a batch.");
+            return;
+        }
 
-            if (!batchId) {
-                console.warn("No batchId found in user document");
-                return;
-            }
+        // ✅ FETCH BATCH DATA
+        const batchRef = doc(db, "batches", batchId);
+        const batchSnap = await getDoc(batchRef);
 
-            const batchRef = doc(db, "batches", batchId);
-            const batchSnap = await getDoc(batchRef);
+        if (!batchSnap.exists()) {
+            throw new Error("Batch not found.");
+        }
 
-            if (!batchSnap.exists()) {
-                console.warn("Batch document not found:", batchId);
-                return;
-            }
+        const batchData = batchSnap.data();
 
-            const batchData = batchSnap.data();
-            console.log("BATCH DATA:", batchData);
-
-            const adviserUid =
-                batchData?.supervisorId ||
-                batchData?.adviserId ||
-                batchData?.teacherId ||
-                null;
-
-            console.log("ADVISER UID FINAL:", adviserUid);
+        const adviserUid =
+            batchData?.supervisorId ||
+            batchData?.adviserId ||
+            batchData?.teacherId ||
+            null;
 
         const studentName =
             userData?.name ||
@@ -319,16 +320,19 @@ window.processUpload = async () => {
 
         const base64File = await new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload  = () => resolve(reader.result);
+            reader.onload = () => resolve(reader.result);
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
 
         const fileName = file.name;
-        const dateStr  = new Date().toLocaleDateString('en-US', {
-            month: 'short', day: '2-digit', year: 'numeric'
+        const dateStr = new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric'
         });
 
+        // ✅ SAVE DOCUMENT
         await setDoc(doc(db, "checklist", `${user.uid}_${selectedForm}`), {
             uid: user.uid,
             studentName,
@@ -342,6 +346,7 @@ window.processUpload = async () => {
             dismissedBy: [],
         });
 
+        // ✅ NOTIFY ADVISER
         if (adviserUid) {
             await notifyDocumentSubmittedToAdviser(
                 adviserUid,

@@ -55,10 +55,21 @@ protectPage('student').then(async (user) => {
 
 function setupLogout() {
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
-        document.getElementById(id)?.addEventListener('click', () =>
-            signOut(auth).then(() => window.location.replace('/index.html'))
-        );
+    document.getElementById(id)?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const confirmed = confirm("Do you really want to log out?");
+        if (!confirmed) return;
+
+        try {
+            await signOut(auth);
+            window.location.replace('/index.html');
+        } catch (err) {
+            console.error("Logout failed:", err);
+            alert("Unable to log out. Please try again.");
+        }
     });
+});
 }
 
 // ─── USER PROFILE ────────────────────────────────────────────
@@ -193,21 +204,21 @@ function setupForm(user) {
         if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
 
        try {
-           const userSnap = await getDoc(doc(db, "users", user.uid));
-            const userData = userSnap.data();
-
-            if (!batchId) {
-                showError("You are not assigned to any batch.");
-                return;
+            const userSnap = await getDoc(doc(db, "users", user.uid));
+            if (!userSnap.exists()) {
+                throw new Error("User data not found.");
             }
 
+            const userData = userSnap.data();
             console.log("USER DATA:", userData);
 
+            // ✅ DEFINE FIRST
             const batchId = userData?.batchId || userData?.batch || null;
             console.log("BATCH ID:", batchId);
 
+            // ✅ THEN USE
             if (!batchId) {
-                console.warn("No batchId found in user document");
+                showError("You are not assigned to any batch.");
                 return;
             }
 
@@ -215,8 +226,7 @@ function setupForm(user) {
             const batchSnap = await getDoc(batchRef);
 
             if (!batchSnap.exists()) {
-                console.warn("Batch document not found:", batchId);
-                return;
+                throw new Error("Batch document not found.");
             }
 
             const batchData = batchSnap.data();
@@ -239,10 +249,26 @@ function setupForm(user) {
             const fileInput = document.getElementById('attendance-file');
 
             if (fileInput?.files[0]) {
-                attachment = await fileToBase64(fileInput.files[0]);
+                const file = fileInput.files[0];
+
+                const MAX_SIZE = 5 * 1024 * 1024; // 5MB safe limit (Firestore-friendly)
+
+                if (file.size > MAX_SIZE) {
+                    alert("File too large. Maximum allowed size is 5MB.");
+
+                    // 🔧 restore button state
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '🕒 Submit Attendance Log';
+                    }
+
+                    return;
+                }
+
+                attachment = await fileToBase64(file);
             }
 
-            // ✅ Save attendance log
+            // ✅ SAVE LOG
             await addDoc(collection(db, 'attendance'), {
                 uid: user.uid,
                 displayDate,
@@ -255,11 +281,13 @@ function setupForm(user) {
                 dismissedBy: [],
             });
 
+            // ✅ NOTIFY
             if (adviserUid) {
                 await notifyLogSubmittedToAdviser(
                     adviserUid,
                     studentName,
-                    displayDate
+                    displayDate, 
+                    batchId
                 );
             }
 
@@ -272,10 +300,15 @@ function setupForm(user) {
             document.getElementById('hours-preview') &&
                 (document.getElementById('hours-preview').style.display = 'none');
 
-        } catch (err) {
-            console.error('[Attendance] submit error:', err);
-            showError('Failed to submit. Please try again.');
-        } finally {
+                    } catch (err) {
+                console.error('[Attendance] submit error:', err);
+
+                if (err.message && err.message.includes('Request payload size exceeds')) {
+                    alert("Upload failed: File is too large. Please upload a file under 5MB.");
+                } else {
+                    showError('Failed to submit. Please try again.');
+                }
+            }  finally {
             if (btn) {
                 btn.disabled = false;
                 btn.textContent = '🕒 Submit Attendance Log';
