@@ -24,6 +24,7 @@ let reportData = {
 };
 
 let currentStatus = "Not Submitted";
+let hasBatch = true;
 
 protectPage('student').then((user) => {
     if (!user) return;
@@ -60,13 +61,72 @@ async function loadUserProfile(user) {
     try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (!snap.exists()) return;
+
         const data = snap.data();
+
         const name = data.name
             || `${data.firstName || ''} ${data.surname || ''}`.trim()
             || 'Student';
+
         populateHeaderUser(name, user.email);
+
+        const batchId = data?.batchId || data?.batch || null;
+
+        if (!batchId) {
+            hasBatch = false;
+            showNoBatchNotice();
+        }
+
+            if (!batchId) {
+        hasBatch = false;
+        showNoBatchNotice();
+
+        // Disable buttons visually
+        const previewBtn = document.getElementById('btn-preview');
+        const submitBtn  = document.getElementById('btn-submit');
+
+        if (previewBtn) {
+            previewBtn.disabled = true;
+            previewBtn.style.opacity = '0.5';
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+        }
+    }
+
     } catch (e) {
         console.error('[Checklist] loadUserProfile:', e);
+    }
+
+}
+
+function showNoBatchNotice() {
+
+    if (document.querySelector('.no-batch-notice')) return;
+
+    const header = document.querySelector('.dashboard-header');
+
+    const notice = document.createElement('div');
+    notice.className = 'no-batch-notice';
+    notice.innerHTML = `
+        <div style="
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px 16px;
+            border-bottom: 1px solid #ffeeba;
+            text-align: center;
+            font-size: 0.9rem;
+        ">
+            ⚠️ You don’t have an adviser yet. Report preview and submission are disabled.
+        </div>
+    `;
+
+    if (header && header.parentNode) {
+        header.parentNode.insertBefore(notice, header.nextSibling);
+    } else {
+        document.body.prepend(notice);
     }
 }
 
@@ -85,21 +145,20 @@ function listenForReportStatus(uid) {
     );
 
     onSnapshot(q, (snap) => {
-    if (snap.empty) {
-        currentStatus = "Not Submitted";
-    } else {
-        const latest = snap.docs[0].data();
-        currentStatus = latest.status || "Pending";
-    }
+        let latest = null;
 
-    const downloadBtn = document.getElementById('btn-download');
-    if (downloadBtn) {
-        downloadBtn.disabled = false; 
-        downloadBtn.style.opacity = currentStatus === 'Approved' ? '1' : '0.5';
-    }
+        if (snap.empty) {
+            currentStatus = "Not Submitted";
+        } else {
+            latest = snap.docs[0].data();
+            currentStatus = latest.status || "Pending";
+        }
 
-        const latest = snap.docs[0].data();
-        currentStatus = latest.status || "Pending";
+        const downloadBtn = document.getElementById('btn-download');
+        if (downloadBtn) {
+            downloadBtn.disabled = currentStatus !== 'Approved';
+            downloadBtn.style.opacity = currentStatus === 'Approved' ? '1' : '0.5';
+        }
 
         if (statusText) {
             statusText.textContent = sanitizeText(currentStatus);
@@ -115,23 +174,23 @@ function listenForReportStatus(uid) {
         if (banner) {
             banner.style.display = 'flex';
             if (bannerTitle) bannerTitle.textContent = `Report: ${currentStatus}`;
+
             if (bannerSub) {
                 const sub = {
                     'Approved': 'Your OJT report has been approved by your adviser.',
                     'Rejected': 'Your report was rejected. Please review remarks and resubmit.',
                     'Pending':  'Your report is under review. Awaiting adviser feedback.',
+                    'Not Submitted': 'You have not submitted your report yet.'
                 }[currentStatus] || '';
                 bannerSub.textContent = sub;
             }
         }
 
-        // Show resubmit button only if rejected
         if (resubmitBtn) {
             resubmitBtn.style.display = currentStatus === 'Rejected' ? 'inline-flex' : 'none';
             resubmitBtn.onclick = () => submitReport(auth.currentUser?.uid);
         }
     });
-
 }
 
 function showError(msg) {
@@ -433,6 +492,11 @@ if (!newTab) {
 }
 
 function previewReport() {
+    if (!hasBatch) {
+        alert("You need an adviser before previewing your OJT report.");
+        return;
+    }
+
     const pdf = generateAdviserPreview(reportData);
     if (!pdf) return;
 
@@ -441,12 +505,11 @@ function previewReport() {
 
     if (modal && iframe) {
         const blob = pdf.output('blob');
-        if (iframe) {
+
         const oldSrc = iframe.src;
         if (oldSrc) URL.revokeObjectURL(oldSrc);
 
         iframe.src = URL.createObjectURL(blob);
-    }
         modal.style.display = 'flex';
     }
 }
@@ -458,6 +521,11 @@ window.closePreview = function() {
 
 async function submitReport(uid) {
     if (!uid) return;
+
+    if (!hasBatch) {
+        alert("You cannot submit your report without an assigned adviser.");
+        return;
+    }
 
     const btn = document.getElementById('btn-submit');
     if (btn) {

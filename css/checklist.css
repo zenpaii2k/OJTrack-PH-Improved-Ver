@@ -366,6 +366,12 @@
     background: var(--bg-elevated);
 }
 
+.no-batch-mode .btn-icon-upload {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
 /* ─── RESPONSIVE ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
     .checklist-layout { padding: 14px; }

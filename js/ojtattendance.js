@@ -218,7 +218,13 @@ function setupForm(user) {
 
             // ✅ THEN USE
             if (!batchId) {
-                showError("You are not assigned to any batch.");
+                showError("You cannot log attendance yet. No adviser has assigned you to a batch.");
+                
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🕒 Submit Attendance Log';
+                }
+
                 return;
             }
 
@@ -325,21 +331,41 @@ function showNoBatchState(user, data) {
 
     populateHeaderUser(name, user.email);
 
-    const main = document.querySelector('.dashboard-main') || document.body;
+    // Show a friendly inline notice instead of wiping UI
+    const form = document.getElementById('attendance-form');
+    const submitBtn = document.getElementById('submit-log-btn');
 
-    main.innerHTML = `
-        <div style="text-align:center; padding:60px 20px;">
-            <h2 style="margin-bottom:10px;">No Batch Assigned</h2>
-            <p style="color:var(--text-muted); max-width:500px; margin:auto;">
-                Your account is active, but you are not currently assigned to any batch.
-                Please wait for your adviser to assign you.
-            </p>
-
-            <div style="margin-top:25px; font-size:0.9rem; color:var(--text-muted);">
-                If you believe this is a mistake, contact your adviser or school administrator.
+    if (form) {
+        const notice = document.createElement('div');
+        notice.className = 'no-batch-notice';
+        notice.innerHTML = `
+            <div style="
+                background: rgba(255, 193, 7, 0.08);
+                border: 1px solid rgba(255, 193, 7, 0.25);
+                color: var(--text-primary);
+                padding: 16px;
+                border-radius: 10px;
+                margin-bottom: 16px;
+                text-align: center;
+            ">
+                <h3 style="margin-bottom:6px;">No Adviser Assigned Yet</h3>
+                <p style="font-size:0.9rem; color:var(--text-muted);">
+                    You can view this page, but you cannot submit attendance logs yet.
+                    Please wait until your adviser assigns you to a batch.
+                </p>
             </div>
-        </div>
-    `;
+        `;
+
+        form.prepend(notice);
+    }
+
+    // 🚫 Disable submission
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '🚫 Cannot submit (No adviser yet)';
+    }
+
+    return false;
 }
 
 // Ensure month and day are correctly padded for comparison

@@ -335,6 +335,26 @@
 
                 </form>
 
+                <div id="reRegModal" class="modal hidden" role="dialog" aria-modal="true">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Account Found</h2>
+                            <p>We found an existing account with this email.</p>
+                        </div>
+
+                        <div id="reRegInfo"></div>
+
+                        <p>Do you want to continue re-registering this account?</p>
+
+                        <input type="password" id="reRegPassword" placeholder="Enter your password" required />
+
+                        <div class="modal-actions">
+                            <button id="confirmReReg" class="btn-primary">Yes, continue</button>
+                            <button id="cancelReReg" class="btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
                 <p class="footer-link">Already have an account? <a href="../index.html">Sign in here</a></p>
 
             </div><!-- /reg-card -->
@@ -357,23 +377,6 @@
             </div>
         </div>
     </div>
-
-        <div id="reRegModal" class="modal hidden" role="dialog" aria-modal="true">
-            <div class="modal-content">
-                <h2>Account Found</h2>
-
-                <p>We found an existing account with this email.</p>
-
-                <div id="reRegInfo"></div>
-
-                <p>Do you want to continue re-registering this account?</p>
-
-                <div class="modal-actions">
-                    <button id="confirmReReg" class="btn-primary">Yes, continue</button>
-                    <button id="cancelReReg" class="btn-secondary">Cancel</button>
-                </div>
-            </div>
-        </div>
 
     <script type="module" src="/js/register.js"></script>
 </body>

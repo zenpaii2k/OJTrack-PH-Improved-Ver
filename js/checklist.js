@@ -111,22 +111,40 @@ function showNoBatchState(user, data) {
         'Student';
 
     populateHeaderUser(name, user.email);
+    showToast("You don’t have an adviser yet. Uploading is disabled.");
 
-    const main = document.querySelector('.dashboard-main') || document.body;
+    document.body.classList.add("no-batch-mode");
 
-    main.innerHTML = `
-        <div style="text-align:center; padding:60px 20px;">
-            <h2 style="margin-bottom:10px;">No Batch Assigned</h2>
-            <p style="color:var(--text-muted); max-width:500px; margin:auto;">
-                Your account is active, but you are not currently assigned to any batch.
-                Please wait for your adviser to assign you.
-            </p>
+    if (document.getElementById("no-batch-notice")) return;
 
-            <div style="margin-top:25px; font-size:0.9rem; color:var(--text-muted);">
-                If you believe this is a mistake, contact your adviser or school administrator.
-            </div>
-        </div>
+    const notice = document.createElement("div");
+    notice.id = "no-batch-notice";
+
+    notice.style.cssText = `
+        background: rgba(255, 193, 7, 0.12);
+        border: 1px solid rgba(255, 193, 7, 0.35);
+        color: #ffd24d;
+        padding: 12px 16px;
+        margin: 10px 20px 0 20px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        text-align: center;
     `;
+
+    notice.innerHTML = `
+        ⚠️ You don’t have an adviser yet.
+        Uploading of OJT documents is disabled until you are assigned to a batch.
+    `;
+
+    // 🎯 INSERT BELOW HEADER (like attendance page)
+    const header = document.querySelector(".dashboard-header");
+    if (header && header.parentNode) {
+        header.parentNode.insertBefore(notice, header.nextSibling);
+    } else {
+        // fallback (just in case layout changes)
+        const container = document.querySelector('.main-wrapper') || document.body;
+        container.prepend(notice);
+    }
 }
 
 // ─── LISTEN TO CHECKLIST ──────────────────────────────────────
@@ -215,7 +233,19 @@ function renderChecklistRow(opt, tbody, uid) {
 
 // ─── GLOBAL FUNCTIONS (called from HTML onclick) ───────────────
 
-window.openUploadModal = (type, specificKey = null) => {
+window.openUploadModal = async (type, specificKey = null) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userSnap = await getDoc(doc(db, "users", user.uid));
+    const userData = userSnap.data();
+    const batchId = userData?.batchId || userData?.batch || null;
+
+    if (!batchId) {
+        showToast("You need an adviser before uploading documents.");
+        return;
+    }
+
     const modal    = document.getElementById('uploadModal');
     const selector = document.getElementById('formSelector');
 
@@ -291,7 +321,7 @@ window.processUpload = async () => {
 
         const batchId = userData?.batchId || userData?.batch || null;
         if (!batchId) {
-            alert("You are not assigned to a batch.");
+            showToast("Upload blocked: No adviser assigned yet.");
             return;
         }
 

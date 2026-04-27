@@ -1,5 +1,5 @@
 import { db, auth } from '../firebase-config.js';
-import { createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
     doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp, query, collection, where, getDocs, arrayRemove
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -200,7 +200,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupPasswordStrength();
     setupPasswordToggle();
     setupFormValidation();
+
+    if (inviteId && inviteData?.email) {
+    const emailInput = document.getElementById('reg-email');
+
+    emailInput.value = inviteData.email.toLowerCase();
+    emailInput.disabled = true;
+}
+
+if (inviteId && inviteData?.email) {
+    const existingSnap = await checkExistingUser(inviteData.email);
+
+        if (existingSnap) {
+            const existingData = existingSnap.data();
+
+            let password;
+
+    try {
+        password = await showReRegModal(existingData);
+    } catch {
+        return;
+    }
+
+    try {
+        await signInWithEmailAndPassword(auth, existingData.email, password);
+    } catch (err) {
+        showBannerError("Incorrect password.");
+        return;
+    }
+
+    await handleReturningInviteUser(existingSnap.id, existingData);
+        }
+    }
 });
+
+async function handleReturningInviteUser(uid, userData) {
+    setLoading(true);
+
+    try {
+        // Optional: clean old batches
+        await removeStudentFromAllBatches(uid);
+
+        // Attach to new batch
+        if (inviteData?.batchId) {
+            await updateDoc(doc(db, "batches", inviteData.batchId), {
+                studentUids: arrayUnion(uid)
+            });
+        }
+
+        // Update user batch + supervisor
+        await updateDoc(doc(db, "users", uid), {
+            batch: inviteData?.batchId ?? null,
+            supervisorId: inviteData?.supervisorId ?? null,
+            updatedAt: serverTimestamp()
+        });
+
+        // Redirect immediately
+        window.location.replace("/student/dashboard.html");
+
+    } catch (err) {
+        showBannerError(err.message);
+        setLoading(false);
+    }
+
+}
 
 // ─── LEGAL MODAL ─────────────────────────────────────────────
 function setupLegalHandlers() {
@@ -384,13 +447,13 @@ function hideBannerError() {
     errBanner.textContent = '';
 }
 
-let authMode = "register"; 
-// "login" | "register" | "invite"
-
 // ─── FORM SUBMIT ─────────────────────────────────────────────
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideBannerError();
+
+    if (!validateForm()) return;
+
     setLoading(true);
 
     try {
@@ -400,86 +463,68 @@ form.addEventListener('submit', async (e) => {
         const fname = sanitizeInput(document.getElementById('reg-firstname').value);
         const lname = sanitizeInput(document.getElementById('reg-surname').value);
 
-        const existingSnap = await checkExistingUser(email);
+        let authUser;
 
-        let uid;
-        let authUser = null;
-
-        // ────────────────
-        // CASE 1: EXISTING USER → SHOW MODAL
-        // ────────────────
-        if (existingSnap) {
-            const existingData = existingSnap.data();
-
-            await showReRegModal(existingData);
-
-            // IMPORTANT: MUST SIGN IN USER
-            const cred = await createUserWithEmailAndPassword(auth, email, password)
-                .catch(async (err) => {
-                    if (err.code === "auth/email-already-in-use") {
-                        // fallback: sign in instead of create
-                        const { signInWithEmailAndPassword } =
-                            await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-
-                        const login = await signInWithEmailAndPassword(auth, email, password);
-                        return login;
-                    }
-                    throw err;
-                });
-
-            authUser = cred.user;
-            uid = existingSnap.id;
-        }
-
-        // ────────────────
-        // CASE 2: NEW USER
-        // ────────────────
-        else {
+        // ─────────────────────────────
+        // TRY CREATE ACCOUNT (ONLY FLOW)
+        // ─────────────────────────────
+        try {
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             authUser = cred.user;
-            uid = authUser.uid;
+
+        } catch (err) {
+
+            if (err.code === "auth/email-already-in-use") {
+
+                const existingSnap = await checkExistingUser(email);
+
+                if (!existingSnap) {
+                    throw new Error("Account exists but no user record found.");
+                }
+
+                const existingData = existingSnap.data();
+
+                const confirmed = await showReRegModal(existingData).catch(() => false);
+
+                if (!confirmed) {
+                    setLoading(false);
+                    return; // ⛔ STOP instead of throwing
+                }
+
+                // ✅ INVITE FLOW (this is your main case)
+                if (inviteId) {
+                    showBannerError("Account already exists. Please log in to continue.");
+                    return;
+                }
+
+                // ❌ Non-invite → send to login instead
+                showBannerError("Account already exists. Please log in.");
+                setLoading(false);
+                return;
+            }
+
+            throw err;
         }
 
-        await authUser.getIdToken(true);
+        const uid = authUser.uid;
 
-        const userRef = doc(db, "users", uid);
+        const payload =
+            currentRole === "student"
+                ? buildStudentPayload(uid, email)
+                : buildSupervisorPayload(uid, email);
 
-        const baseData = {
-            role: currentRole,
-            firstName: fname,
-            lastName: lname,
-            name: `${fname} ${lname}`,
-            email,
-            updatedAt: serverTimestamp()
-        };
+        // ─────────────────────────────
+        // SAVE USER DATA
+        // ─────────────────────────────
+        await setDoc(doc(db, "users", uid), payload, { merge: true });
 
-        await setDoc(userRef, {
-            ...baseData,
-            hoursCompleted: 0
-        }, { merge: true });
-
-        // ────────────────
-        // INVITE HANDLING
-        // ────────────────
-        if (inviteId && inviteData?.batchId) {
-
-            await removeStudentFromAllBatches(uid);
-
-            await updateDoc(userRef, {
-                batch: inviteData.batchId,
-                supervisorId: inviteData.supervisorId || null,
-                inviteId
-            });
-
-            await updateDoc(doc(db, "batches", inviteData.batchId), {
-                studentUids: arrayUnion(uid)
-            });
-        }
-
+        // ─────────────────────────────
+        // REDIRECT
+        // ─────────────────────────────
         window.location.replace("/student/dashboard.html");
 
     } catch (err) {
-        showError(err.message);
+        showBannerError(err.message);
         setLoading(false);
     }
 });
@@ -536,51 +581,66 @@ function buildStudentPayload(uid, email) {
     };
 }
 
-const uid = authUser.uid;
-const email = authUser.email;
-
-// ALWAYS BUILD FULL OBJECT FIRST
-const payload =
-    currentRole === "student"
-        ? buildStudentPayload(uid, email)
-        : buildSupervisorPayload(uid, email);
-
-// SINGLE WRITE ONLY (NO updateDoc AFTER THIS)
-await setDoc(doc(db, "users", uid), payload, { merge: true });
-
-// Handle invite batch ONLY AFTER main write
-if (inviteId && inviteData?.batchId) {
-    await updateDoc(doc(db, "batches", inviteData.batchId), {
-        studentUids: arrayUnion(uid)
-    });
-}
-
 function showReRegModal(userData) {
     const modal = document.getElementById("reRegModal");
     const info  = document.getElementById("reRegInfo");
+    const pass  = document.getElementById("reRegPassword");
+
+    document.body.classList.add("modal-open");
 
     info.innerHTML = `
-        <p><strong>Name:</strong> ${userData.name}</p>
-        <p><strong>Email:</strong> ${userData.email}</p>
-        <p><strong>Role:</strong> ${userData.role}</p>
-        <p><strong>Batch:</strong> ${userData.batch || "None"}</p>
+        <div class="reReg-summary">
+            <p><strong>Name:</strong> ${userData.name}</p>
+            <p><strong>Email:</strong> ${userData.email}</p>
+            <p><strong>Role:</strong> ${userData.role}</p>
+            <p><strong>Batch:</strong> ${userData.batch || "None"}</p>
+        </div>
     `;
 
     modal.classList.remove("hidden");
+    pass.value = "";
+    pass.focus();
 
     return new Promise((resolve, reject) => {
+        const confirmBtn = document.getElementById("confirmReReg");
+        const cancelBtn  = document.getElementById("cancelReReg");
 
-        document.getElementById("confirmReReg").onclick = () => {
+        function cleanup() {
             modal.classList.add("hidden");
-            resolve(true);
+            document.body.classList.remove("modal-open");
+
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+        }
+
+        confirmBtn.onclick = () => {
+            const password = pass.value;
+
+            if (!password) {
+                pass.style.border = "1px solid red";
+                pass.focus();
+                return;
+            }
+
+            cleanup();
+            resolve(password);
         };
 
-        document.getElementById("cancelReReg").onclick = () => {
-            modal.classList.add("hidden");
-            reject("User cancelled re-registration");
+        cancelBtn.onclick = () => {
+            cleanup();
+            reject(new Error("User cancelled re-registration"));
         };
+
+        // ESC key support (nice UX upgrade)
+        function escHandler(e) {
+            if (e.key === "Escape") {
+                cleanup();
+                reject(new Error("User cancelled re-registration"));
+                window.removeEventListener("keydown", escHandler);
+            }
+        }
+
+        window.addEventListener("keydown", escHandler);
     });
 }
-
-
 

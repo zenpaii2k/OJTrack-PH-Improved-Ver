@@ -64,51 +64,83 @@ async function loadUserProfile(user) {
     try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (!snap.exists()) return;
+
         userData = snap.data();
-        userData.batchId = userData.batchId || userData.batch || null;
 
-        const hasBatch = !!(userData.batchId || userData.batch);
-        
+        const hasBatch = !!(userData.batchId || userData.batch || userData.supervisorId);
 
-        // ✅ FIX: schema uses 'surname' not 'lastName'
-        const name = userData.name
-            || `${userData.firstName || ''} ${userData.surname || ''}`.trim()
-            || 'Student';
+        const name =
+            userData.name ||
+            `${userData.firstName || ''} ${userData.surname || ''}`.trim() ||
+            'Student';
 
         populateHeaderUser(name, user.email);
 
         const hour = new Date().getHours();
-        const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+        const greeting =
+            hour < 12 ? 'Good morning' :
+            hour < 18 ? 'Good afternoon' :
+            'Good evening';
 
-        setEl(
-        'greeting-text',
-        hasBatch
-            ? `${greeting}, ${userData.firstName || name}!`
-            : `Welcome, ${userData.firstName || name}!`
-        );
+        // ─── NOTICE STATE ─────────────────────────────
+        if (!hasBatch) {
+            showNoAdviserNotice();
 
-        setEl(
-        'greeting-sub',
-        hasBatch
-            ? `${userData.course || 'OJT'} Student · ${userData.company || 'No company set'}`
-            : `Waiting for batch assignment`
-        );
+            setEl('greeting-text', `Welcome, ${userData.firstName || name}!`);
+            setEl('greeting-sub', 'You have no assigned adviser yet');
 
-        // Info strip
+            setEl('chip-company', `🏢 Not assigned`);
+            setEl('chip-school', `📁 No batch assigned`);
+            setEl('chip-course', `🎓 Awaiting adviser assignment`);
+
+            return; // ⛔ STOP further OJT features
+        }
+
+        // ─── NORMAL STATE ─────────────────────────────
+        setEl('greeting-text', `${greeting}, ${userData.firstName || name}!`);
+        setEl('greeting-sub', `${userData.course || 'OJT'} Student · ${userData.company || 'No company set'}`);
+
         setEl('chip-company', `🏢 ${userData.company || 'No company set'}`);
-        setEl('chip-school',   `📁 ${userData.school  || 'No batch assigned'}`);
-        setEl('chip-course',  `🎓 ${userData.course || '—'} · ${userData.fullSection || userData.section || '—'}`);
+        setEl('chip-school', `📁 ${userData.school || 'No batch assigned'}`);
+        setEl('chip-course', `🎓 ${userData.course || '—'} · ${userData.fullSection || userData.section || '—'}`);
 
         updateProgressStats(userData);
 
-        if (hasBatch) {
-            loadFeedback(user.uid);
-            syncAttendanceLogs(user.uid);
-        }
+        loadFeedback(user.uid);
+        syncAttendanceLogs(user.uid);
 
     } catch (err) {
         console.error('[Dashboard] loadUserProfile error:', err);
     }
+}
+
+function showNoAdviserNotice() {
+    const header = document.querySelector('.dashboard-header');
+
+    if (!header) return;
+
+    if (document.querySelector('.no-adviser-notice')) return;
+
+    const notice = document.createElement('div');
+    notice.className = 'no-adviser-notice';
+
+    notice.innerHTML = `
+        <div style="
+            background:#fff3cd;
+            color:#856404;
+            padding:14px 16px;
+            border-bottom:1px solid #ffeeba;
+            text-align:center;
+            font-size:0.95rem;
+            font-weight:500;
+        ">
+            ⚠️ You have no assigned adviser yet.  
+            OJT features such as attendance tracking, report compilation, preview, and submission are disabled.
+        </div>
+    `;
+
+    // 👇 insert directly UNDER header
+    header.insertAdjacentElement('afterend', notice);
 }
 
 function showNoBatchState(user, data) {
