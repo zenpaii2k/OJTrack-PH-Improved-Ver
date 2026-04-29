@@ -190,7 +190,7 @@ function buildNotifItem(notif) {
     const icon    = TYPE_ICONS[notif.type] || TYPE_ICONS.default;
     const title   = sanitizeText(notif.title || 'Notification');
     const body    = sanitizeText(notif.body  || '');
-    const time    = relativeTime(notif.createdAt);
+    const time = notif.createdAt?.toDate ? relativeTime(notif.createdAt.toDate()): '';
     const unread  = !notif.isRead ? 'unread' : '';
     const url     = notif.relatedUrl || '';
 
@@ -281,6 +281,17 @@ async function isUserValid(recipientUid) {
         return false;
     }
 }
+
+async function isStudentStillValid(studentUid) {
+    try {
+        const studentDoc = await getDoc(doc(db, "students", studentUid));
+        return studentDoc.exists();
+    } catch (error) {
+        console.error("Validation error:", error);
+        return false;
+    }
+}
+
 export async function sendNotification({
     recipientUid,
     title,

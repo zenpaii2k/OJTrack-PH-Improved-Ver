@@ -237,6 +237,22 @@ if (inviteId && inviteData?.email) {
 async function handleReturningInviteUser(uid, userData) {
     setLoading(true);
 
+    const batchId = inviteData?.batchId;
+
+    if (batchId) {
+        const batchRef = doc(db, "batches", batchId);
+        const userRef = doc(db, "users", uid);
+
+        await updateDoc(batchRef, {
+            studentUids: arrayUnion(uid)
+        });
+
+        await updateDoc(userRef, {
+            batch: batchId,
+            supervisorId: inviteData?.supervisorId ?? null
+        });
+    }
+
     try {
         // Optional: clean old batches
         await removeStudentFromAllBatches(uid);
@@ -316,7 +332,17 @@ function setupPasswordStrength() {
         if (/[^A-Za-z0-9]/.test(val))     score++;
 
         fill.className = 'pw-strength-fill';
-        if (val.length === 0) { fill.style.width = '0'; return; }
+        if (val.length === 0) {
+            fill.style.width = '0%';
+        } else {
+            const widths = ['25%', '50%', '75%', '100%'];
+            fill.style.width = widths[score - 1] || '25%';
+
+            if (score <= 1) fill.classList.add('weak');
+            else if (score <= 2) fill.classList.add('medium');
+            else fill.classList.add('strong');
+        }
+
         if (score <= 1) fill.classList.add('weak');
         else if (score <= 2) fill.classList.add('medium');
         else fill.classList.add('strong');
@@ -518,6 +544,12 @@ form.addEventListener('submit', async (e) => {
         // ─────────────────────────────
         await setDoc(doc(db, "users", uid), payload, { merge: true });
 
+        if (inviteData?.batchId) {
+            await updateDoc(doc(db, "batches", inviteData.batchId), {
+                studentUids: arrayUnion(uid)
+            });
+        }
+
         // ─────────────────────────────
         // REDIRECT
         // ─────────────────────────────
@@ -576,6 +608,43 @@ function buildStudentPayload(uid, email) {
         supervisorId: inviteData?.supervisorId ?? null,
 
         // ─── SYSTEM ────────────────────────
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+}
+
+function buildSupervisorPayload(uid, email) {
+    const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
+    const surname   = sanitizeInput(document.getElementById('reg-surname').value);
+
+    const organization = sanitizeInput(document.getElementById('sup-org')?.value);
+    const number       = sanitizeInput(document.getElementById('sup-contact')?.value);
+
+    // Get selected courses (checkboxes)
+    const checkedCourses = Array.from(
+        document.querySelectorAll('input[name="sup-course"]:checked')
+    ).map(cb => cb.value);
+
+    const designation = "OJT Coordinator"; 
+
+    // Generate simple staff ID (you can improve this later)
+    const staffId = `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    return {
+        uid,
+
+        role: "supervisor",
+        email,
+        firstName,
+        surname,
+        name: `${firstName} ${surname}`,
+        organization,
+        number,
+        designation,
+        assignedCourses: checkedCourses,
+
+        staffId,
+
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     };

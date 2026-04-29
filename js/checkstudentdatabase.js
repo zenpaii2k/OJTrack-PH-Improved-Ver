@@ -269,42 +269,70 @@ async function fetchUserProfile(user) {
     }
 }
 
-function loadStudentList(batchId) {
-    if (!batchId) return;
+async function loadStudentList(batchId) {
     const container = document.getElementById('student-rows-container');
-    
     container.innerHTML = '<div class="loading-text">Loading students...</div>';
 
-    const q = query(collection(db, "students"), where("batch", "==", batchId));
+    try {
+        const batchSnap = await getDoc(doc(db, "batches", batchId));
 
-    onSnapshot(q, (snapshot) => {
-        container.innerHTML = "";
-        
-        if (snapshot.empty) {
-            container.innerHTML = '<div class="empty-text" style="padding: 20px; color: #888;">No students enrolled in this batch yet.</div>';
+        if (!batchSnap.exists()) {
+            container.innerHTML = 'Batch not found';
             return;
         }
 
-        snapshot.forEach((doc) => {
-            const student = doc.data();
+        const studentUids = batchSnap.data().studentUids || [];
+
+        if (studentUids.length === 0) {
+            container.innerHTML = '<div class="empty-text">No students in this batch</div>';
+            return;
+        }
+
+        const chunks = [];
+        for (let i = 0; i < studentUids.length; i += 10) {
+            chunks.push(studentUids.slice(i, i + 10));
+        }
+
+        const allStudents = [];
+
+        for (const chunk of chunks) {
+            const q = query(
+                collection(db, "users"),
+                where("__name__", "in", chunk)
+            );
+
+            const snap = await getDocs(q);
+            snap.forEach(doc => {
+                allStudents.push({ id: doc.id, ...doc.data() });
+            });
+        }
+
+        container.innerHTML = "";
+
+        if (allStudents.length === 0) {
+            container.innerHTML = '<div class="empty-text">No student records found</div>';
+            return;
+        }
+
+        allStudents.forEach(student => {
             const row = document.createElement('div');
             row.className = 'student-row';
-            
-            // Format the row content
+
             row.innerHTML = `
-                <div class="student-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <span class="name" style="text-align: left;">${student.name || "Unknown Student"}</span>
-                    <span class="section-tag" style="text-align: right;">${student.course}-${student.section}</span>
+                <div class="student-info" style="display:flex;justify-content:space-between;width:100%;">
+                    <span>${student.name}</span>
+                    <span>${student.course || ''}-${student.section || ''}</span>
                 </div>
             `;
-            
-            row.onclick = () => viewStudentDetails(doc.id, student); 
+
+            row.onclick = () => viewStudentDetails(student.id, student);
             container.appendChild(row);
         });
-    }, (error) => {
-        console.error("Student Snapshot Error:", error);
-        container.innerHTML= '<div class="error-text">Failed to load students.</div>';
-    });
+
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<div class="error-text">Failed to load students</div>';
+    }
 }
 
 // 1. Updated viewStudentDetails to handle "Approved" hours calculation
@@ -614,5 +642,4 @@ async function handleLogDecision(studentUid, date, adviserName, decision, reason
         console.error("Notification error:", e);
     }
 }
-
 

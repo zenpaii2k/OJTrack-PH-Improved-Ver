@@ -68,16 +68,6 @@ function setupLogout() {
     });
 }
 
-function initCombinedRealTimeDashboard(user, batchRef, uid) {
-    updateTotalStats(user).then((uids) => {
-        state.myStudentUids = uids;
-    });
-
-    return updateDoc(batchRef, {
-        studentUids: arrayUnion(uid)
-    });
-}
-
 async function updateTotalStats(user) {
     try {
         const batchQuery = query(collection(db, "batches"), where("supervisorId", "==", user.uid));
@@ -284,15 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.generateInviteLink(activeBatchId);
 });
-
-    // SIDEBAR BUTTON FIXES
-    document.getElementById("sidebar-theme-btn")?.addEventListener("click", () => {
-        document.documentElement.classList.toggle("dark-theme");
-        localStorage.setItem(
-            "ojtrack-theme",
-            document.documentElement.classList.contains("dark-theme") ? "dark" : "light"
-        );
-    });
 
 });
 

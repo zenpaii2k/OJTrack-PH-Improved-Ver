@@ -1,13 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!--
-      FIXES applied vs original:
-      1. Changed data-theme="dark" (no longer used) to IIFE class approach
-      2. Fixed backtick in class attribute: `class="how-it-works"` → class="how-it-works"
-      3. Fixed broken img border attribute → style attribute
-      4. Fixed .legal-card CSS trapped inside @media block (in index.css)
-    -->
+
     <script>(function(){var t=localStorage.getItem('ojtrack-theme')||'dark';document.documentElement.className=t+'-theme';})();</script>
 
     <meta charset="UTF-8">
@@ -20,9 +14,8 @@
 
 <body>
 
-<!-- ══════════════════════════════════════════════════════
-     NAVIGATION BAR
-══════════════════════════════════════════════════════ -->
+    <!-- navigation bar -->
+
 <nav class="navbar" role="navigation" aria-label="Main navigation">
     <div class="nav-logo">
         <img src="/images/633412968_1977516346287127_5918068733792267466_n.jpg" alt="OJTrack PH Logo">

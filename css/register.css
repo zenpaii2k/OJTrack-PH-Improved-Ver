@@ -468,6 +468,10 @@ fieldset.form-section legend {
 
 .footer-link a:hover { text-decoration: underline; }
 
+input::-ms-reveal {
+  display: none;
+}
+
 /* ─────────────────────────────
    RE-REGISTER MODAL (ENHANCED)
 ───────────────────────────── */

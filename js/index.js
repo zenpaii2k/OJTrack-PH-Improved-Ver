@@ -1,6 +1,6 @@
 import { auth, db } from "../firebase-config.js";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { doc, getDoc, updateDoc} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, query, where, doc, getDoc, getDocs, updateDoc} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { initTheme, setupThemeToggle, sanitizeText } from '/js/theme.js';
 
 initTheme();
@@ -149,28 +149,44 @@ toggleBtn.addEventListener('click', () => {
 });
 
 // --- 2. Forgot Password Logic ---
-const forgotPasswordLink = document.getElementById('forgot-password-link');
+document.addEventListener('DOMContentLoaded', () => {
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
 
-forgotPasswordLink.addEventListener('click', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value;
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', async (e) => {
+            e.preventDefault();
 
-    if (!email) {
-        alert("Please enter your email address first to reset your password.");
-        return;
-    }
+            const email = document.getElementById('login-email').value.trim();
 
-    try {
-        await sendPasswordResetEmail(auth, email);
-        alert("Password reset email sent! Please check your inbox (and spam folder).");
-    } catch (error) {
-        console.error("Error code:", error.code);
-        // Direct handling for dummy/missing accounts
-        if (error.code === 'auth/user-not-found') {
-            alert("No account found with this email.");
-        } else {
-            alert("Error: " + error.message);
-        }
+            if (!email) {
+                alert("Please enter your email address first.");
+                return;
+            }
+
+            try {
+                forgotPasswordLink.textContent = "Checking...";
+                forgotPasswordLink.style.pointerEvents = "none";
+
+                const q = query(collection(db, "users"), where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    alert("No account found with this email.");
+                    return;
+                }
+
+                forgotPasswordLink.textContent = "Sending...";
+                await sendPasswordResetEmail(auth, email);
+
+                alert("Password reset email sent! Check your inbox.");
+            } catch (error) {
+                console.error("Reset Error:", error);
+                alert("Error: " + error.message);
+            } finally {
+                forgotPasswordLink.textContent = "Forgot Password?";
+                forgotPasswordLink.style.pointerEvents = "auto";
+            }
+        });
     }
 });
 

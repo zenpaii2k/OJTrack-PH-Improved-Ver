@@ -225,7 +225,10 @@ function setupReviewButtons(reportDocId, studentUid, studentName) {
     rejectBtn.disabled = false;
     feedbackBtn.disabled = false;
 
-    if (remarksInput) remarksInput.value = "";
+    if (!remarksInput?.value.trim()) {
+        approveBtn.disabled = true;
+        rejectBtn.disabled = true;
+    }
 
     // Optional: store current context (safe fallback)
     currentReportDocId = reportDocId;
@@ -260,6 +263,10 @@ let reportListener = null;
 let pdfTimeout = null;
 
 async function loadStudentReport(uid, studentName, clickedItem) {
+
+    document.getElementById('adviser-pdf-preview').style.display = 'none';
+    document.getElementById('report-empty-state').style.display = 'none';
+    document.getElementById('report-history').innerHTML = "";
     selectedStudentId = uid;
 
     document.querySelectorAll('.report-student-item')
@@ -298,7 +305,14 @@ async function loadStudentReport(uid, studentName, clickedItem) {
         reportListener = onSnapshot(rq, async (snap) => {
 
             if (uid !== selectedStudentId) return;
-            if (snap.empty) return;
+            if (snap.empty) {
+                document.getElementById('adviser-pdf-preview').style.display = 'none';
+                document.getElementById('report-empty-state').style.display = 'flex';
+                return;
+            } else {
+                document.getElementById('adviser-pdf-preview').style.display = 'block';
+                document.getElementById('report-empty-state').style.display = 'none';
+            }
 
             const docSnap = snap.docs[0];
             const report = docSnap.data();
@@ -387,10 +401,10 @@ async function compileStudentPreviewData(uid, studentBasicInfo) {
     }
 }
 
-function generateAdviserPreview(reportData) {
+function generateAdviserPreview(reportData, generatedAt) {
     const { jsPDF } = window.jspdf;
     const pdfdoc = new jsPDF();
-    const timestamp = new Date().toLocaleString();  
+    const timestamp = new Date().toLocaleString();
 
     // 1. PROFESSIONAL HEADER (Aligned Colors)
     pdfdoc.setFillColor(44, 62, 80); // Dark Navy
@@ -589,7 +603,7 @@ async function displayFullReport(uid, data) {
     currentReportDocId = reportDoc.id;
 
     const reportData = await compileStudentPreviewData(uid, data);
-    currentReportPdf = generateAdviserPreview(reportData);
+    currentReportPdf = generateAdviserPreview(compiled, new Date());
 
     renderHistory(reportDoc.data().history || []);
 
@@ -627,7 +641,16 @@ document.getElementById('download-report-btn').onclick = () => {
 async function submitDecision(reportDocId, decision, studentUid) {
     const msg = document.getElementById('review-remarks')?.value.trim();
 
-    if (!msg) return alert("Feedback required.");
+    if (!msg) {
+        return alert("Please enter feedback before approving or rejecting the report.");
+    }
+
+    if (decision !== "Approved" && decision !== "Rejected") {
+        return alert("Invalid decision.");
+    }
+
+    const confirmAction = confirm(`Are you sure you want to ${decision} this report?`);
+    if (!confirmAction) return;
 
     const reportRef = doc(db, "reports", reportDocId);
     const snap = await getDoc(reportRef);
@@ -640,18 +663,29 @@ async function submitDecision(reportDocId, decision, studentUid) {
         action: decision,
         by: "Adviser",
         message: msg,
-        timestamp: serverTimestamp()
+        timestamp: Date.now()
     };
 
     await updateDoc(reportRef, {
-        status: decision,
-        lastAction: decision,
-        reviewedBy: auth.currentUser.uid,
-        reviewedAt: serverTimestamp(),
-        history: [...(data.history || []), entry]
-    });
+    status: decision,
+    lastAction: decision,
+    reviewedBy: auth.currentUser.uid,
+    reviewedAt: serverTimestamp(),
+    history: [...(data.history || []), entry]
+        });
+
+        // 🔥 ADD THIS
+        if (decision === "Approved") {
+            await notifyReportApproved(studentUid, "Adviser");
+        }
+
+        if (decision === "Rejected") {
+            await notifyReportRejected(studentUid, "Adviser", msg);
+        }
 
     renderHistory([...data.history, entry]);
+
+    document.getElementById('review-remarks').value = "";
 
     alert(`Report ${decision}`);
 }
@@ -672,7 +706,7 @@ async function sendFeedback(reportDocId, studentUid) {
         action: "Feedback",
         by: "Adviser",
         message: msg,
-        timestamp: serverTimestamp()
+        timestamp: Date.now()
     };
 
     await updateDoc(reportRef, {
@@ -684,7 +718,7 @@ async function sendFeedback(reportDocId, studentUid) {
         senderName: "Adviser",
         senderRole: "OJT Adviser",
         message: msg,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
         type: "feedback"
     });
 

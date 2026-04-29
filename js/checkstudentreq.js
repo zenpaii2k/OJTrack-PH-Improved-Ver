@@ -30,7 +30,12 @@ onAuthStateChanged(auth, async (user) => {
         await fetchUserProfile(user);
         await initializeSupervisorData(user.uid);
 
-        // ✅ PUT LOGOUT CONFIRMATION HERE
+        setupThemeToggle('theme-toggle-btn');
+        setupThemeToggle('sidebar-theme-btn');
+        setupProfileDropdown();
+        setupNotifDropdown();
+        setupNotificationSystem(user.uid);
+
         setupLogout();
 
     } else {
@@ -218,21 +223,43 @@ function selectStudent(studentId, name, batchName) {
     currentStudentUid = studentId; 
     document.getElementById('display-name').innerText = name;
     document.getElementById('display-section').innerText = batchName;
-    
-    const checklistQuery = query(collection(db, "checklist"), where("uid", "==", studentId));
-    
+
+    const checklistQuery = query(
+        collection(db, "checklist"),
+        where("uid", "==", studentId)
+    );
+
     if (unsubscribeChecklist) unsubscribeChecklist();
-     unsubscribeChecklist = onSnapshot(checklistQuery, (snapshot) => {
+
+    unsubscribeChecklist = onSnapshot(checklistQuery, (snapshot) => {
         const tbody = document.getElementById('verification-tbody');
         const countDisplay = document.getElementById('completion-count');
+
         tbody.innerHTML = "";
         let approvedCount = 0;
 
+        // ✅ EMPTY STATE
+        if (snapshot.empty) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center; padding:40px; color:#888;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                            <span style="font-size:2rem;">📄</span>
+                            <strong>No documents submitted yet</strong>
+                            <small>The student hasn’t uploaded any requirements at this time.</small>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            countDisplay.innerText = `0/13`;
+            return;
+        }
+
         snapshot.forEach((logDoc) => {
             const data = logDoc.data();
+
             if (data.status === "Approved") approvedCount++;
 
-            const row = document.createElement('tr');
             const isApproved = data.status === "Approved";
             const isRejected = data.status === "Rejected";
 
@@ -242,21 +269,35 @@ function selectStudent(studentId, name, batchName) {
             else if (isRejected) buttonClass += "btn-rejected";
             else buttonClass += "btn-pending";
 
-                row.innerHTML = `
-                    <td><strong>${data.formKey.toUpperCase()}</strong></td>
-                    <td>${data.dateSubmitted}</td>
-                    <td>
-                        <button class="${buttonClass}"
-                           onclick="openReviewModal('${logDoc.id}', '${data.fileData}', '${data.status}', '${data.fileName || 'No File Name'}', '${data.formKey}')"
-                            ${isRejected ? 'disabled' : ''}>
-                            ${isApproved ? 'View Final' : (isRejected ? 'Await Re-upload' : 'View & Review')}
-                        </button>
-                    </td>
-                    <td><span class="status-badge ${data.status.toLowerCase().replace(/\s/g, '-')}">${data.status}</span></td>
-                    <td>---</td>
-                `;
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td><strong>${data.formKey.toUpperCase()}</strong></td>
+                <td>${data.dateSubmitted}</td>
+                <td>
+                    <button class="${buttonClass}"
+                        onclick="openReviewModal(
+                            '${logDoc.id}',
+                            '${data.fileData}',
+                            '${data.status}',
+                            '${data.fileName || 'No File Name'}',
+                            '${data.formKey}'
+                        )"
+                        ${isRejected ? 'disabled' : ''}>
+                        ${isApproved ? 'View Final' : (isRejected ? 'Await Re-upload' : 'View & Review')}
+                    </button>
+                </td>
+                <td>
+                    <span class="status-badge ${data.status.toLowerCase().replace(/\s/g, '-')}">
+                        ${data.status}
+                    </span>
+                </td>
+                <td>---</td>
+            `;
+
             tbody.appendChild(row);
         });
+
         countDisplay.innerText = `${approvedCount}/13`;
     });
 }

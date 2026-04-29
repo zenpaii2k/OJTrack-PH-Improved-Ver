@@ -1,15 +1,9 @@
-/* ══════════════════════════════════════════════════════════════
-   OJTrack PH — index.css  (v2.0)
-   Covers: homepage, login modal, footer, legal modal.
-   Theme tokens use the class-based system (.dark-theme / .light-theme)
-   matching the IIFE anti-flash script — not data-theme attributes.
-   ══════════════════════════════════════════════════════════════ */
-
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Sora:wght@600;700;800&display=swap');
 
 /* ─── TOKENS: DARK (default) ────────────────────────────────── */
 :root,
 html.dark-theme {
+    --brand-gold: #CC9704;
     --bg:      #111114;
     --card:    #1c1c20;
     --surface: #242428;
@@ -21,10 +15,14 @@ html.dark-theme {
     --danger:  #e05a5a;
     --success: #2ecc71;
     --brand-yellow: #CC9704;
+    --scrollbar-track: #1e1e1e;
+    --scrollbar-thumb: #3a3a3a;
+    
 }
 
 /* ─── TOKENS: LIGHT ──────────────────────────────────────────── */
 html.light-theme {
+    --brand-gold: #CC9704;
     --bg:      #f2f4f7;
     --card:    #ffffff;
     --surface: #f8f9fb;
@@ -35,6 +33,8 @@ html.light-theme {
     --blue:    #2c55d6;
     --danger:  #e05a5a;
     --success: #27ae60;
+    --scrollbar-track: #f0f2f5;
+    --scrollbar-thumb: #cccccc;
 }
 
 /* ─── BASE ───────────────────────────────────────────────────── */
@@ -1192,6 +1192,11 @@ input::-ms-reveal { display: none; }
 .footer-bottom p { font-size: 0.78rem; color: var(--text-dim); margin: 0; }
 
 .social-icons { display: flex; gap: 16px; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-gold); }
 
 /* ─── RESPONSIVE ─────────────────────────────────────────────── */
 @media (max-width: 1024px) {
