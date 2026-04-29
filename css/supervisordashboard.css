@@ -67,6 +67,15 @@
     flex-shrink: 0;
 }
 
+.batch-progress-row.flash {
+    animation: flashHighlight 1.2s ease;
+}
+
+@keyframes flashHighlight {
+    0% { background: rgba(255, 215, 0, 0.25); }
+    100% { background: transparent; }
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
     .stats-4col { grid-template-columns: repeat(2, 1fr); }

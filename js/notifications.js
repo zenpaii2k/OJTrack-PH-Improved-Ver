@@ -284,8 +284,17 @@ async function isUserValid(recipientUid) {
 
 async function isStudentStillValid(studentUid) {
     try {
-        const studentDoc = await getDoc(doc(db, "students", studentUid));
-        return studentDoc.exists();
+        // Change "students" to "users" to match your Firestore structure
+        const studentDoc = await getDoc(doc(db, "users", studentUid));
+        
+        if (!studentDoc.exists()) return false;
+
+        const data = studentDoc.data();
+        
+        const hasBatch = data.batchId || data.batch;
+        const isStudent = data.role === 'student';
+
+        return isStudent && hasBatch;
     } catch (error) {
         console.error("Validation error:", error);
         return false;
@@ -351,7 +360,7 @@ export function notifyLogApproved(studentUid, date, adviserName) {
     return sendNotification({
         recipientUid: studentUid,
         title: 'Attendance Log Approved ✅',
-        body:  `Your log for ${date} was approved by ${adviserName}.`,
+        body:  `Your log for ${date} was approved by your OJT adviser, ${adviserName}.`,
         type:  'approval',
         category: 'attendance',
         senderName: adviserName,

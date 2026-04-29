@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!--
-      Anti-flash theme script — must be first.
-      Registration page uses the same theme system as the rest of the app.
-    -->
+   
     <script>
         (function() {
             var t = localStorage.getItem('ojtrack-theme') || 'dark';
@@ -24,9 +21,7 @@
 
 <body>
 
-    <!-- ════════════════════════════════════════
-         PAGE WRAPPER
-    ════════════════════════════════════════ -->
+    <!-- // page wrapper -->
     <div class="reg-page">
 
         <!-- LEFT PANEL — Branding -->
@@ -68,7 +63,7 @@
                 <!-- ─── REGISTRATION FORM ─────────────────── -->
                 <form id="registration-form" novalidate>
 
-                    <!-- STEP 1: ACCOUNT SECURITY -->
+                    <!-- ACCOUNT SECURITY -->
                     <fieldset class="form-section">
                         <legend>
                             <span class="step-num" aria-label="Step 1">1</span>
@@ -116,7 +111,7 @@
                         </div>
                     </fieldset>
 
-                    <!-- STEP 2: PERSONAL PROFILE -->
+                    <!-- PERSONAL PROFILE -->
                     <fieldset class="form-section">
                         <legend>
                             <span class="step-num" aria-label="Step 2">2</span>
@@ -156,7 +151,7 @@
                         </div>
                     </fieldset>
 
-                    <!-- STEP 3: ROLE-SPECIFIC DETAILS -->
+                    <!-- ROLE-SPECIFIC DETAILS -->
                     <fieldset class="form-section" id="dynamic-fields">
                         <legend>
                             <span class="step-num" aria-label="Step 3">3</span>
@@ -357,14 +352,12 @@
 
                 <p class="footer-link">Already have an account? <a href="../index.html">Sign in here</a></p>
 
-            </div><!-- /reg-card -->
+            </div>
         </main>
 
-    </div><!-- /reg-page -->
+    </div>
 
-    <!-- ════════════════════════════════════════
-         LEGAL MODAL
-    ════════════════════════════════════════ -->
+    // legal modal
     <div id="legal-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="legal-title">
         <div class="modal-card" style="max-width:560px; max-height:85vh; display:flex; flex-direction:column;">
             <button type="button" class="close-modal-btn" id="close-legal-btn" aria-label="Close">&times;</button>

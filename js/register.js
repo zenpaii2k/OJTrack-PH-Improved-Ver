@@ -236,49 +236,30 @@ if (inviteId && inviteData?.email) {
 
 async function handleReturningInviteUser(uid, userData) {
     setLoading(true);
-
     const batchId = inviteData?.batchId;
 
-    if (batchId) {
-        const batchRef = doc(db, "batches", batchId);
-        const userRef = doc(db, "users", uid);
-
-        await updateDoc(batchRef, {
-            studentUids: arrayUnion(uid)
-        });
-
-        await updateDoc(userRef, {
-            batch: batchId,
-            supervisorId: inviteData?.supervisorId ?? null
-        });
-    }
-
     try {
-        // Optional: clean old batches
-        await removeStudentFromAllBatches(uid);
-
-        // Attach to new batch
-        if (inviteData?.batchId) {
-            await updateDoc(doc(db, "batches", inviteData.batchId), {
+        // 2. Add to NEW batch
+        if (batchId) {
+            await updateDoc(doc(db, "batches", batchId), {
                 studentUids: arrayUnion(uid)
             });
         }
 
-        // Update user batch + supervisor
         await updateDoc(doc(db, "users", uid), {
-            batch: inviteData?.batchId ?? null,
+            batch: batchId ?? null,
             supervisorId: inviteData?.supervisorId ?? null,
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            // Ensure you aren't trying to update 'role' or 'uid' here
         });
 
-        // Redirect immediately
         window.location.replace("/student/dashboard.html");
 
     } catch (err) {
-        showBannerError(err.message);
+        console.error("Invite Update Error:", err);
+        showBannerError("Permission denied: Could not join batch.");
         setLoading(false);
     }
-
 }
 
 // ─── LEGAL MODAL ─────────────────────────────────────────────

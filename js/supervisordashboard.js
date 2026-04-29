@@ -88,8 +88,6 @@ async function initDashboard(user) {
         const uids = await updateTotalStats(user);
         state.myStudentUids = uids;
 
-        // Real-time attendance listener
-        // ✅ FIX: orderBy 'timestamp' (schema field)
         const attendanceQ = query(
             collection(db, "attendance"),
             orderBy("timestamp", "desc"),
@@ -131,7 +129,14 @@ async function initDashboard(user) {
             renderRecentSubmissionsTable();
         });
 
-        renderBatchProgress(user.uid);
+        const batchQ = query(
+            collection(db, "batches"),
+            where("supervisorId", "==", user.uid)
+        );
+
+        onSnapshot(batchQ, (snapshot) => {
+            renderBatchProgressLive(snapshot);
+        });
 
     } catch (e) {
         console.error('[SupDash] initDashboard:', e);
@@ -186,30 +191,34 @@ async function updateTotalStats(user) {
 }
 
 // ─── BATCH PROGRESS LIST ──────────────────────────────────────
-async function renderBatchProgress(supervisorUid) {
+const batchRowMap = new Map();
+const batchProgressCache = new Map();
+
+async function renderBatchProgressLive(snapshot) {
     const container = document.getElementById('batch-progress-list');
     if (!container) return;
 
-    try {
-        const q = query(collection(db, "batches"), where("supervisorId", "==", supervisorUid));
-        const snap = await getDocs(q);
+    if (snapshot.empty) {
+        container.innerHTML = '<p class="empty-text">No batches created yet.</p>';
+        return;
+    }
 
-        if (snap.empty) {
-            container.innerHTML = '<p class="empty-text">No batches created yet.</p>';
-            return;
-        }
+    const TOTAL_DOCS_REQUIRED = 13;
 
-        container.innerHTML = '';
-        const TOTAL_DOCS_REQUIRED = 13;
+    const activeIds = new Set();
 
-        for (const batchDoc of snap.docs) {
-            const batch = batchDoc.data();
-            const students = Array.isArray(batch.studentUids) ? batch.studentUids : [];
-            if (students.length === 0) continue;
+    for (const batchDoc of snapshot.docs) {
+        const batchId = batchDoc.id;
+        activeIds.add(batchId);
 
-            let totalBatchPct = 0;
-            let studentCount = 0;
+        const batch = batchDoc.data();
+        const students = Array.isArray(batch.studentUids) ? batch.studentUids : [];
+        const hasStudents = students.length > 0;
 
+        let totalBatchPct = 0;
+        let studentCount = 0;
+
+        if (hasStudents) {
             for (const uid of students) {
                 const uSnap = await getDoc(doc(db, "users", uid));
                 if (!uSnap.exists()) continue;
@@ -217,8 +226,10 @@ async function renderBatchProgress(supervisorUid) {
                 const uData = uSnap.data();
                 const required = parseFloat(uData.requiredHours) || 600;
 
-                // 1. Calculate Approved Hours (Case-insensitive 'approved')
-                const attSnap = await getDocs(query(collection(db, "attendance"), where("uid", "==", uid)));
+                const attSnap = await getDocs(
+                    query(collection(db, "attendance"), where("uid", "==", uid))
+                );
+
                 let completedHrs = 0;
                 attSnap.forEach(d => {
                     const log = d.data();
@@ -226,36 +237,73 @@ async function renderBatchProgress(supervisorUid) {
                         completedHrs += computeHoursDecimal(log.timeIn, log.timeOut);
                     }
                 });
+
                 const hoursPct = Math.min(100, (completedHrs / required) * 100);
 
-                // 2. Calculate Approved Docs (Strict 'Approved')
-                const checkSnap = await getDocs(query(collection(db, "checklist"), where("uid", "==", uid)));
+                const checkSnap = await getDocs(
+                    query(collection(db, "checklist"), where("uid", "==", uid))
+                );
+
                 let approvedDocs = 0;
                 checkSnap.forEach(d => {
                     if (d.data().status === 'Approved') approvedDocs++;
                 });
-                const docsPct = Math.min(100, (approvedDocs / TOTAL_DOCS_REQUIRED) * 100);
+
+                const docsPct = Math.min(100, (approvedDocs / 13) * 100);
 
                 totalBatchPct += (hoursPct + docsPct) / 2;
                 studentCount++;
             }
-
-            const avgPct = studentCount > 0 ? Math.round(totalBatchPct / studentCount) : 0;
-
-            const row = document.createElement('div');
-            row.className = 'batch-progress-row';
-            row.innerHTML = `
-                <div class="batch-name">${sanitizeText(batch.name || 'Batch')}</div>
-                <div class="batch-meta">${students.length} student${students.length !== 1 ? 's' : ''}</div>
-                <div class="batch-bar-wrap">
-                    <div class="batch-bar-fill" style="width:${avgPct}%"></div>
-                </div>
-                <div class="batch-pct">${avgPct}%</div>`;
-            container.appendChild(row);
         }
-    } catch (e) {
-        console.error('[SupDash] renderBatchProgress:', e);
-        container.innerHTML = '<p class="empty-text">Could not load batch data.</p>';
+
+        const avgPct = hasStudents ? Math.round(totalBatchPct / studentCount) : 0;
+        const prevPct = batchProgressCache.get(batchId);
+        const changed = prevPct !== undefined && prevPct !== avgPct;
+
+        batchProgressCache.set(batchId, avgPct);
+
+        let row = batchRowMap.get(batchId);
+
+        if (!row) {
+            row = document.createElement('div');
+            row.className = 'batch-progress-row';
+            container.appendChild(row);
+            batchRowMap.set(batchId, row);
+        }
+
+        row.innerHTML = hasStudents ? `
+            <div class="batch-name">${sanitizeText(batch.name || 'Batch')}</div>
+            <div class="batch-meta">${students.length} student${students.length !== 1 ? 's' : ''}</div>
+            <div class="batch-bar-wrap">
+                <div class="batch-bar-fill" style="width:${avgPct}%"></div>
+            </div>
+            <div class="batch-pct">${avgPct}%</div>
+        ` : `
+            <div class="batch-name">${sanitizeText(batch.name || 'Batch')}</div>
+            <div class="batch-meta">No students assigned</div>
+            <div class="batch-bar-wrap">
+                <div class="batch-bar-fill" style="width:0%"></div>
+            </div>
+            <div class="batch-pct">0%</div>
+        `;
+
+        if (changed) {
+            row.classList.remove('flash');
+            void row.offsetWidth;
+
+            row.classList.add('flash');
+
+            setTimeout(() => row.classList.remove('flash'), 1200);
+        }
+    }
+
+    // REMOVE deleted batches
+    for (const [id, el] of batchRowMap.entries()) {
+        if (!activeIds.has(id)) {
+            el.remove();
+            batchRowMap.delete(id);
+            batchProgressCache.delete(id);
+        }
     }
 }
 

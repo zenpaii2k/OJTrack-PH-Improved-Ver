@@ -12,7 +12,7 @@ import {
 import {  setupNotificationSystem,
   sendNotification,
   markAllRead,
-  clearAllNotifications, notifyDocumentSubmittedToAdviser} from '../js/notifications.js';
+  clearAllNotifications, notifyDocumentSubmittedToAdviser, notifyDocumentApproved, notifyDocumentRejected} from '../js/notifications.js';
 
 // ─── INIT THEME ───────────────────────────────────────────────
 initTheme();
@@ -51,10 +51,10 @@ protectPage('student').then((user) => {
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
     setupNotifDropdown();
-    setupNotificationSystem(user.uid);
+    setupNotificationSystem(user.uid); 
 
-    // ✅ FIX: Proper user profile population
     loadUserProfile(user);
+    listenToChecklist(user.uid);
 
     // ✅ Wire logout for both buttons
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {

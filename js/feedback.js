@@ -70,7 +70,7 @@ async function loadUserProfile(user) {
 
 // ─── REALTIME LISTENER ───────────────────────────────────────
 function listenToFeedback(uid) {
-    // ✅ FIX: orderBy 'timestamp' — this is what checkstudentdatabase.js writes
+
     const q = query(
         collection(db, 'students', uid, 'feedback'),
         orderBy('timestamp', 'desc')

@@ -362,6 +362,11 @@ window.openReviewModal = (docId, fileData, status, fileName, formKey) => {
 window.closeReviewModal = () => {
     document.getElementById('feedbackModal').style.display = 'none';
     document.getElementById('supervisorRemarks').value = "";
+
+    currentDocId = null;
+    currentDocStatus = null;
+    currentStudentUid = null;
+    currentFormKey = null;
 };
 
 window.submitFeedback = async (status) => {
@@ -376,11 +381,14 @@ window.submitFeedback = async (status) => {
     if (!remarks && status === "Rejected") return alert("Please provide a reason for rejection.");
     if (!remarks && status === "Approved") return alert("Please provide a reason for approval.");
 
-    try {
+   try {
+        const remarks = document.getElementById('supervisorRemarks').value;
         const updateData = {
             status: status,
-            remarks: remarks || "Approved by Supervisor",
-            verifiedAt: new Date().toLocaleDateString()
+            remarks: remarks || (status === "Approved" ? "Approved by Supervisor" : "No reason provided"),
+            verifiedAt: new Date().toLocaleDateString(),
+            fileData: null,
+            uid: currentStudentUid 
         };
 
         if (status === "Rejected") {
@@ -388,30 +396,36 @@ window.submitFeedback = async (status) => {
             updateData.dateSubmitted = "Waiting for Re-upload";
         }
 
-        // ✅ update checklist first
         await updateDoc(doc(db, "checklist", currentDocId), updateData);
 
-        // ─── NOTIFICATIONS ─────────────────────────────
-        const adviserName =
-            auth.currentUser?.displayName || "Adviser";
+        // 2. Prepare Notification Data
+        const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const adviserName = userSnap.exists() ? 
+            (userSnap.data().name || `${userSnap.data().firstName} ${userSnap.data().surname}`) : "Adviser";
 
-        const studentUid = currentStudentUid; // make sure this is defined globally
-        const docName = currentFormKey || "Document"; // adjust if you store formKey
+        const docFriendlyName = currentFormKey.replace(/-/g, ' ').toUpperCase();
 
         if (status === "Approved") {
-            await notifyDocumentApproved(studentUid, docName, adviserName);
+            await notifyDocumentApproved(
+                currentStudentUid, // Recipient
+                docFriendlyName,   // Document Name
+                adviserName        // Sender
+            );
+        } else if (status === "Rejected") {
+            await notifyDocumentRejected(
+                currentStudentUid, 
+                docFriendlyName, 
+                adviserName, 
+                remarks || "Please check the requirements and re-upload."
+            );
         }
 
-        if (status === "Rejected") {
-            await notifyDocumentRejected(studentUid, docName, adviserName, remarks);
-        }
-
-        alert(`Document has been ${status}.`);
+        alert(`Document has been ${status}. The student has been notified.`);
         closeReviewModal();
 
     } catch (e) {
         console.error("Update Error:", e);
-        alert("Error updating document.");
+        alert("Error updating document: " + e.message);
     }
 };
 
