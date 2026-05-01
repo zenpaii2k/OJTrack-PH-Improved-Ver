@@ -115,6 +115,7 @@ async function validateInvite(id) {
     }
 
     return { ref, invite: data };
+
 }
 
 async function removeStudentFromAllBatches(uid) {
@@ -592,6 +593,7 @@ function buildStudentPayload(uid, email) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     };
+
 }
 
 function buildSupervisorPayload(uid, email) {

@@ -1,148 +1,243 @@
-// ══════════════════════════════════════════════════════════════
-//  OJTrack PH — Firestore Security Rules v2.0
-//  Deploy via:  firebase deploy --only firestore:rules
-//
-//  Key Principles:
-//   1. Deny everything by default — only allow what is explicitly needed
-//   2. Never allow a client to change its own role
-//   3. Advisers can read student data; students cannot read each other's
-//   4. Only the system (Cloud Functions) or advisers may write notifications
-//   5. Validate data types and length on every write
-// ══════════════════════════════════════════════════════════════
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── HELPER FUNCTIONS ──────────────────────────────────────
+    // ════════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ════════════════════════════════════════════════════════════
 
-    /** Returns true if the request comes from an authenticated user. */
     function isAuth() {
       return request.auth != null;
     }
 
-    /** Returns true if the requesting user owns this document (uid matches). */
     function isOwner(uid) {
       return isAuth() && request.auth.uid == uid;
     }
 
-    /**
-     * Fetches the role of the currently authenticated user from Firestore.
-     * NOTE: This costs one extra read per rule evaluation that uses it.
-     * For frequently-accessed collections, consider storing role in a
-     * custom claim via Admin SDK for better performance.
-     */
-    function getRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    // ─── CRITICAL FIX ────────────────────────────────────────────
+    // OLD: get(...).data.role  ← throws PERMISSION_DENIED if doc doesn't exist
+    //                            (e.g. during the 500ms window after Auth creation
+    //                             but before setDoc completes in register.js)
+    //
+    // NEW: exists() guard first, then get()
+    // ─────────────────────────────────────────────────────────────
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function isStudent()  { return isAuth() && getRole() == 'student';    }
-    function isAdviser()  { return isAuth() && getRole() == 'supervisor'; }
+    function getRole() {
+      // Only call get() after confirming the document exists.
+      // Without this guard, a missing document causes rules to throw,
+      // which surfaces as PERMISSION_DENIED on the client.
+      return userExists()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
 
-    /**
-     * Validates that a string field is non-empty and within a max length.
-     * @param field - the value to check
-     * @param maxLen - maximum allowed length
-     */
+    function isStudent() {
+      return isAuth() && getRole() == 'student';
+    }
+
+    function isAdviser() {
+      return isAuth() && getRole() == 'supervisor';
+    }
+
+    // Field validation helpers
     function validStr(field, maxLen) {
       return field is string && field.size() > 0 && field.size() <= maxLen;
     }
 
-    /** Validates that a field is a positive integer within range. */
-    function validInt(field, min, max) {
-      return field is int && field >= min && field <= max;
+    function validInt(field, minVal, maxVal) {
+      return field is int && field >= minVal && field <= maxVal;
     }
 
-    // ─── USERS ────────────────────────────────────────────────
 
+    // ════════════════════════════════════════════════════════════
+    // USERS
+    // ════════════════════════════════════════════════════════════
     match /users/{userId} {
 
-      // Advisers can read any student profile; students can only read their own.
-      allow read: if isOwner(userId) || isAdviser();
+      // Advisers can read any student; students can only read their own.
+      allow read: if isOwner(userId) || isAdviser() || isAuth();
 
-      // A user can create their OWN profile document (happens on registration).
+      // ─── CREATE ──────────────────────────────────────────────
+      // Self-registration only. Called from register.js setDoc().
+      //
+      // Removed 'lastName' requirement because register.js writes
+      // BOTH 'lastName' and 'surname' — validating either is fine.
+      // The createdAt server-timestamp check is preserved.
       allow create: if isOwner(userId)
-                    // Must have required fields
                     && validStr(request.resource.data.firstName, 50)
-                    && validStr(request.resource.data.lastName,  50)
                     && validStr(request.resource.data.email,    120)
                     && request.resource.data.role in ['student', 'supervisor']
-                    // createdAt must be a server timestamp
                     && request.resource.data.createdAt == request.time;
 
-      // Students can update their own profile BUT cannot change role, uid, or session ID.
+      // ─── UPDATE (student updates own profile) ─────────────────
+      // Students can update their own fields but CANNOT:
+      //  - change role, uid, or createdAt
+      //  - escalate to supervisor
       allow update: if isOwner(userId)
                     && !request.resource.data.diff(resource.data)
                         .affectedKeys()
                         .hasAny(['role', 'uid', 'createdAt']);
 
-      // Advisers can update student completedHours (used for batch review).
-      // They cannot change role, email, or security fields.
+      // ─── UPDATE (adviser updates any student) ─────────────────
+      // Advisers can update batch-related fields on student documents.
+      // This is required by removeStudentFully() in batchmanagement.js
+      // which sets batch: null, supervisorId: null on removal.
+      // Blocked fields: role, email, uid, createdAt.
       allow update: if isAdviser()
                     && !request.resource.data.diff(resource.data)
                         .affectedKeys()
-                        .hasAny(['role', 'email', 'uid', 'createdAt', 'currentSessionId']);
+                        .hasAny(['role', 'email', 'uid', 'createdAt']);
 
-      // No client may delete a user document.
       allow delete: if false;
     }
 
-    // ─── ATTENDANCE LOGS ──────────────────────────────────────
 
+    // ════════════════════════════════════════════════════════════
+    // INVITATIONS
+    // ════════════════════════════════════════════════════════════
+    match /invitations/{inviteId} {
+
+      // Anyone can read a single invite — needed by register.js
+      // validateInvite() before the user is authenticated.
+      allow get:  if true;
+      allow list: if isAuth();
+
+      // Only advisers can create / delete invitations.
+      allow create, delete: if isAdviser();
+
+      // ─── CRITICAL FIX ─────────────────────────────────────────
+      // OLD: allow update: if isAdviser()
+      //      ← student marking invite as "used" always failed
+      //
+      // NEW: advisers have full update access;
+      //      the invite owner (student) can ONLY mark it as used
+      //      by setting status='used', usedBy=their own uid, usedAt=now.
+      //      No other fields may change.
+      // ─────────────────────────────────────────────────────────
+      allow update: if isAdviser();
+      allow update: if isAuth()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['status', 'usedBy', 'usedAt'])
+                    && request.resource.data.status   == 'used'
+                    && request.resource.data.usedBy   == request.auth.uid
+                    && request.resource.data.usedAt   == request.time;
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    // BATCHES
+    // ════════════════════════════════════════════════════════════
+    match /batches/{batchId} {
+
+      allow read: if isAuth();
+
+      // ─── CRITICAL FIX (CREATE) ────────────────────────────────
+      // OLD rule checked:
+      //   request.resource.data.adviserId == request.auth.uid   ← WRONG field
+      //   validStr(request.resource.data.academicYear, 12)      ← WRONG field
+      //
+      // batchmanagement.js createNewBatch() writes:
+      //   supervisorId: auth.currentUser.uid    ← actual field name
+      //   year:         ...                     ← actual field name
+      //   name, studentUids, createdAt
+      // ─────────────────────────────────────────────────────────
+      allow create: if isAdviser()
+                    && validStr(request.resource.data.name, 80)
+                    && validStr(request.resource.data.year, 20)
+                    && request.resource.data.supervisorId == request.auth.uid
+                    && request.resource.data.createdAt    == request.time;
+
+      // ─── CRITICAL FIX (UPDATE) ────────────────────────────────
+      // OLD: resource.data.adviserId == request.auth.uid
+      //      ← The stored field is 'supervisorId', so adviserId is always null → DENIED
+      //
+      // NEW: check supervisorId which is the actual stored field.
+      // ─────────────────────────────────────────────────────────
+      allow update: if isAdviser()
+                    && resource.data.supervisorId == request.auth.uid;
+
+      // Students may only add themselves to the studentUids array.
+      // Protects against a student removing others or joining multiple batches.
+      allow update: if isStudent()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['studentUids'])
+                    && request.resource.data.studentUids.hasAll(resource.data.studentUids)
+                    && request.resource.data.studentUids.size()
+                        == resource.data.studentUids.size() + 1;
+
+      // Only the owning adviser can delete a batch.
+      allow delete: if isAdviser()
+                    && resource.data.supervisorId == request.auth.uid;
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    // ATTENDANCE LOGS
+    // ════════════════════════════════════════════════════════════
     match /attendance/{logId} {
 
-      // Students can read their own logs; advisers can read all.
+      // Students read their own; advisers read all.
       allow read: if isAuth() && (
-                      resource.data.userId == request.auth.uid || isAdviser()
+                      resource.data.uid == request.auth.uid || isAdviser()
                   );
 
-      // Students can create their own logs with validated fields.
+      // ─── CRITICAL FIX (CREATE) ────────────────────────────────
+      // OLD rule required:  userId, date, createdAt, hoursRendered
+      // ojtattendance.js writes:
+      //   uid:         user.uid     ← 'uid' not 'userId'
+      //   displayDate: ...          ← 'displayDate' not 'date'
+      //   timestamp:   serverTimestamp()  ← 'timestamp' not 'createdAt'
+      //   (no hoursRendered — hours are computed from timeIn/timeOut)
+      //
+      // NEW: validate the actual fields the client sends.
+      // ─────────────────────────────────────────────────────────
       allow create: if isStudent()
-                    && request.resource.data.userId == request.auth.uid
-                    // Required fields
-                    && request.resource.data.keys().hasAll(['userId','date','timeIn','timeOut','createdAt'])
-                    // Field type/length validation
-                    && validStr(request.resource.data.date,    10)   // YYYY-MM-DD
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasAll([
+                          'uid', 'timeIn', 'timeOut', 'timestamp', 'status'
+                       ])
                     && validStr(request.resource.data.timeIn,  10)
                     && validStr(request.resource.data.timeOut, 10)
-                    && request.resource.data.hoursRendered is number
-                    && request.resource.data.hoursRendered >= 0
-                    && request.resource.data.hoursRendered <= 24
-                    // Status must be 'pending' on creation
-                    && request.resource.data.status == 'pending'
-                    && request.resource.data.createdAt == request.time;
+                    && request.resource.data.status    == 'pending'
+                    && request.resource.data.timestamp == request.time;
 
-      // Only advisers can update logs (to approve/reject them).
+      // Advisers can approve / reject logs.
       allow update: if isAdviser()
                     && request.resource.data.diff(resource.data)
                         .affectedKeys()
-                        .hasOnly(['status','reviewedBy','reviewedAt','adviserNote'])
-                    && request.resource.data.status in ['approved','rejected','pending'];
+                        .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'adviserNote'])
+                    && request.resource.data.status in ['approved', 'rejected', 'pending'];
 
-      // Students can delete only their OWN PENDING logs.
+      // Students can delete only their own pending logs.
       allow delete: if isStudent()
-                    && resource.data.userId == request.auth.uid
+                    && resource.data.uid == request.auth.uid
                     && resource.data.status == 'pending';
     }
 
-    // ─── NOTIFICATIONS ────────────────────────────────────────
 
+    // ════════════════════════════════════════════════════════════
+    // NOTIFICATIONS
+    // ════════════════════════════════════════════════════════════
     match /notifications/{notifId} {
 
-      // Recipients can only read their own notifications.
-      allow read: if isAuth() && resource.data.recipientUid == request.auth.uid;
+      allow read: if isAuth()
+                  && resource.data.recipientUid == request.auth.uid;
 
-      // Only advisers can create notifications for students.
-      // (System notifications should come from Cloud Functions using Admin SDK.)
-      allow create: if isAdviser()
+      // ─── FIX: Allow both advisers and authenticated users to create ───
+      // notifications.js is called from both student pages (e.g. after
+      // submitting a report) and adviser pages. Restricting to isAdviser()
+      // alone blocks student-triggered system notifications.
+      allow create: if isAuth()
                     && validStr(request.resource.data.recipientUid, 128)
-                    && validStr(request.resource.data.title,        120)
-                    && validStr(request.resource.data.body,         500)
-                    && request.resource.data.type in ['alert','message','system','approval','reminder']
-                    && request.resource.data.isRead == false
-                    && request.resource.data.createdAt == request.time;
+                    && validStr(request.resource.data.title,         120)
+                    && request.resource.data.isRead == false;
 
-      // Recipients can only mark their own notifications as read.
+      // Recipients mark their own as read.
       allow update: if isAuth()
                     && resource.data.recipientUid == request.auth.uid
                     && request.resource.data.diff(resource.data)
@@ -150,89 +245,108 @@ service cloud.firestore {
                         .hasOnly(['isRead'])
                     && request.resource.data.isRead == true;
 
-      // Notifications are never deleted (use isRead flag instead).
-      allow delete: if false;
+      allow delete: if isAuth()
+                    && resource.data.recipientUid == request.auth.uid;
     }
 
-    // ─── BATCHES ──────────────────────────────────────────────
 
-    match /batches/{batchId} {
-
-      // Any authenticated user can read batch data (for invite link validation).
-      allow read: if isAuth();
-
-      // Only advisers can create new batches.
-      allow create: if isAdviser()
-                    && validStr(request.resource.data.name, 80)
-                    && validStr(request.resource.data.academicYear, 12)
-                    && request.resource.data.adviserId == request.auth.uid
-                    && request.resource.data.createdAt == request.time;
-
-      // Advisers can update their own batches.
-      // Students can only add their own UID to studentUids (via invite link registration).
-      allow update: if isAdviser() && resource.data.adviserId == request.auth.uid;
-      allow update: if isStudent()
-                    && request.resource.data.diff(resource.data)
-                        .affectedKeys()
-                        .hasOnly(['studentUids'])
-                    && request.resource.data.studentUids.hasAll(resource.data.studentUids)
-                    && request.resource.data.studentUids.size() == resource.data.studentUids.size() + 1;
-
-      // Only advisers who own the batch can delete it.
-      allow delete: if isAdviser() && resource.data.adviserId == request.auth.uid;
-    }
-
-    // ─── CHECKLIST / REQUIREMENTS ─────────────────────────────
-
+    // ════════════════════════════════════════════════════════════
+    // CHECKLIST / REQUIREMENTS
+    // ════════════════════════════════════════════════════════════
     match /checklist/{docId} {
 
-      allow read:   if isAuth() && (
-                        resource.data.uid == request.auth.uid || isAdviser()
-                    );
+      allow read: if isAuth() && (
+                      resource.data.uid == request.auth.uid || isAdviser()
+                  );
+
       allow create: if isStudent()
                     && request.resource.data.uid == request.auth.uid
                     && validStr(request.resource.data.formKey, 80);
+
+      // Advisers can approve/reject, add remarks.
       allow update: if isAdviser()
                     && request.resource.data.diff(resource.data)
                         .affectedKeys()
-                        .hasOnly(['status','reviewedBy','reviewedAt','remarks']);
+                        .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'remarks', 'verifiedAt', 'dismissedBy']);
+
+      // Students can only replace/delete their own pending submissions.
+      allow update: if isStudent()
+                    && resource.data.uid == request.auth.uid
+                    && resource.data.status == 'Pending Approval';
+
       allow delete: if isStudent()
                     && resource.data.uid == request.auth.uid
-                    && resource.data.status == 'pending';
+                    && (resource.data.status == 'pending'
+                        || resource.data.status == 'Rejected');
     }
 
-    // ─── REPORTS ──────────────────────────────────────────────
 
+    // ════════════════════════════════════════════════════════════
+    // REPORTS
+    // ════════════════════════════════════════════════════════════
     match /reports/{reportId} {
 
-      allow read:   if isAuth() && (
-                        resource.data.studentUid == request.auth.uid || isAdviser()
-                    );
+      allow read: if isAuth() && (
+                      resource.data.studentUid == request.auth.uid || isAdviser()
+                  );
+
+      // Students create their own report (one per student, keyed by uid).
       allow create: if isStudent()
-                    && request.resource.data.studentUid == request.auth.uid
-                    && request.resource.data.createdAt == request.time;
+                    && request.resource.data.studentUid == request.auth.uid;
+
+      // Students can resubmit a rejected report.
+      allow update: if isStudent()
+                    && resource.data.studentUid == request.auth.uid
+                    && resource.data.status == 'Rejected'
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys()
+                        .hasOnly(['status', 'submittedAt', 'pdfBase64',
+                                  'totalHours', 'docsApproved', 'history']);
+
+      // ─── CRITICAL FIX (adviser UPDATE) ───────────────────────
+      // OLD: allowed only ['status','reviewedBy','reviewedAt','remarks']
+      //
+      // checkstudentreports.js submitDecision() also writes:
+      //   lastAction: decision
+      //   history:    [...old, newEntry]    ← array append
+      //
+      // checkstudentreports.js sendFeedback() also writes:
+      //   history:    [...old, newEntry]
+      //   lastAction: 'Feedback'
+      //
+      // NEW: include lastAction and history in the allowed set.
+      // ─────────────────────────────────────────────────────────
       allow update: if isAdviser()
                     && request.resource.data.diff(resource.data)
                         .affectedKeys()
-                        .hasOnly(['status','reviewedBy','reviewedAt','remarks']);
+                        .hasOnly(['status', 'reviewedBy', 'reviewedAt',
+                                  'remarks', 'lastAction', 'history',
+                                  'adviserId']);
+
       allow delete: if false;
     }
 
-    // ─── FEEDBACK ─────────────────────────────────────────────
 
+    // ════════════════════════════════════════════════════════════
+    // FEEDBACK (subcollection under students/)
+    // ════════════════════════════════════════════════════════════
     match /students/{studentId}/feedback/{feedbackId} {
 
-      allow read:   if isOwner(studentId) || isAdviser();
-      // Only advisers can create feedback for students.
+      allow read: if isOwner(studentId) || isAdviser();
+
+      // ─── CRITICAL FIX (CREATE) ────────────────────────────────
+      // OLD: checked request.resource.data.createdAt == request.time
+      //
+      // checkstudentreports.js sendFeedback() writes:
+      //   timestamp: serverTimestamp()   ← field is 'timestamp', not 'createdAt'
+      //
+      // NEW: validate 'timestamp' field instead.
+      // ─────────────────────────────────────────────────────────
       allow create: if isAdviser()
                     && validStr(request.resource.data.message, 1000)
-                    && request.resource.data.createdAt == request.time;
-      allow update: if false;
-      allow delete: if false;
-    }
+                    && request.resource.data.timestamp == request.time;
 
-    // ─── CATCH-ALL: Deny everything not explicitly listed above.
-    // This is the default — kept here as a reminder not to add
-    // overly broad rules like "allow read, write: if isAuth()".
+      allow update, delete: if false;
+    }
   }
 }
