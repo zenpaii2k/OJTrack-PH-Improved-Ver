@@ -16,6 +16,7 @@ import {  setupNotificationSystem,
 
 // ─── INIT THEME ───────────────────────────────────────────────
 initTheme();
+let unsubscribeChecklist = null;
 
 // ─── DOCUMENT DEFINITIONS ─────────────────────────────────────
 const docOptions = {
@@ -43,54 +44,50 @@ const allDocKeys = [...docOptions["Forms"], ...docOptions["Requirements"]];
 let currentStudentDocs = {};
 
 // ─── AUTH ────────────────────────────────────────────────────
-protectPage('student').then((user) => {
+protectPage('student').then(async (user) => {
     if (!user) return;
 
-    // ✅ FIX: Wire ALL theme + UI controls (was missing before)
+    const hasBatch = await loadUserProfile(user);
+
     setupThemeToggle('theme-toggle-btn');
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
     setupNotifDropdown();
     setupNotificationSystem(user.uid); 
 
-    loadUserProfile(user);
-    listenToChecklist(user.uid);
+    if (hasBatch) {
+        listenToChecklist(user.uid);
+    } else {
+        clearChecklistUI();
+    }
 
-    // ✅ Wire logout for both buttons
+    // ✅ Logout wiring
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
-    document.getElementById(id)?.addEventListener('click', async (e) => {
-        e.preventDefault();
+        document.getElementById(id)?.addEventListener('click', async (e) => {
+            e.preventDefault();
 
-        const confirmed = confirm("Do you really want to log out?");
-        if (!confirmed) return;
+            const confirmed = confirm("Do you really want to log out?");
+            if (!confirmed) return;
 
-        try {
-            await signOut(auth);
-            window.location.replace('/index.html');
-        } catch (err) {
-            console.error("Logout failed:", err);
-            alert("Unable to log out. Please try again.");
-        }
+            try {
+                await signOut(auth);
+                window.location.replace('/index.html');
+            } catch (err) {
+                console.error("Logout failed:", err);
+                alert("Unable to log out. Please try again.");
+            }
+        });
     });
-});
-
-    listenToChecklist(user.uid);
 });
 
 // ─── USER PROFILE ────────────────────────────────────────────
 async function loadUserProfile(user) {
     try {
         const snap = await getDoc(doc(db, 'users', user.uid));
-        if (!snap.exists()) return;
+        if (!snap.exists()) return false;
 
         const data = snap.data();
-
         const batchId = data?.batchId || data?.batch || null;
-
-        if (!batchId) {
-            showNoBatchState(user, data);
-            return;
-        }
 
         const name =
             data.name ||
@@ -99,8 +96,15 @@ async function loadUserProfile(user) {
 
         populateHeaderUser(name, user.email);
 
+        if (!batchId) {
+            showNoBatchState(user, data);
+            return false;
+        }
+
+        return true; 
     } catch (e) {
         console.error('[Checklist] loadUserProfile:', e);
+        return false;
     }
 }
 
@@ -149,20 +153,24 @@ function showNoBatchState(user, data) {
 
 // ─── LISTEN TO CHECKLIST ──────────────────────────────────────
 function listenToChecklist(uid) {
-    const tbody         = document.getElementById('checklist-tbody');
-    const progressBar   = document.getElementById('overall-progress-bar');
+
+    if (unsubscribeChecklist) {
+        unsubscribeChecklist();
+    }
+
+    const tbody = document.getElementById('checklist-tbody');
+    const progressBar = document.getElementById('overall-progress-bar');
     const completionText = document.getElementById('completion-text');
 
-    // ✅ Query only THIS student's checklist docs (efficient)
     const q = query(
         collection(db, "checklist"),
         where("uid", "==", uid)
     );
 
-    onSnapshot(q, (snapshot) => {
+    unsubscribeChecklist = onSnapshot(q, (snapshot) => {
         currentStudentDocs = {};
         let approvedCount = 0;
-        const totalDocs   = allDocKeys.length;
+        const totalDocs = allDocKeys.length;
 
         snapshot.docs.forEach(d => {
             const data = d.data();
@@ -170,16 +178,20 @@ function listenToChecklist(uid) {
             if (data.status === "Approved") approvedCount++;
         });
 
-        // Update progress bar
-        const percentage = totalDocs > 0 ? Math.round((approvedCount / totalDocs) * 100) : 0;
-        if (progressBar)    progressBar.style.width = `${percentage}%`;
-        if (completionText) completionText.textContent =
-            `${approvedCount} of ${totalDocs} documents approved (${percentage}%)`;
+        const percentage = totalDocs > 0
+            ? Math.round((approvedCount / totalDocs) * 100)
+            : 0;
+
+        if (progressBar) progressBar.style.width = `${percentage}%`;
+        if (completionText) {
+            completionText.textContent =
+                `${approvedCount} of ${totalDocs} documents approved (${percentage}%)`;
+        }
 
         if (!tbody) return;
         tbody.innerHTML = "";
 
-        // Section: Forms
+        // render sections...
         const formsHeader = document.createElement('tr');
         formsHeader.className = 'section-divider';
         formsHeader.innerHTML = `<td colspan="4">📄 Forms</td>`;
@@ -187,7 +199,6 @@ function listenToChecklist(uid) {
 
         docOptions["Forms"].forEach(opt => renderChecklistRow(opt, tbody, uid));
 
-        // Section: Requirements
         const reqsHeader = document.createElement('tr');
         reqsHeader.className = 'section-divider';
         reqsHeader.innerHTML = `<td colspan="4">📋 Requirements</td>`;
@@ -196,6 +207,30 @@ function listenToChecklist(uid) {
         docOptions["Requirements"].forEach(opt => renderChecklistRow(opt, tbody, uid));
 
     }, err => console.error('[Checklist] listener error:', err));
+}
+
+function clearChecklistUI() {
+    // stop firestore listener
+    if (unsubscribeChecklist) {
+        unsubscribeChecklist();
+        unsubscribeChecklist = null;
+    }
+
+    // reset local state
+    currentStudentDocs = {};
+
+    // clear table
+    const tbody = document.getElementById('checklist-tbody');
+    if (tbody) tbody.innerHTML = "";
+
+    // reset progress bar
+    const progressBar = document.getElementById('overall-progress-bar');
+    if (progressBar) progressBar.style.width = "0%";
+
+    const completionText = document.getElementById('completion-text');
+    if (completionText) {
+        completionText.textContent = "No active batch assigned.";
+    }
 }
 
 function renderChecklistRow(opt, tbody, uid) {

@@ -136,18 +136,77 @@ async function initializeApp(user) {
             if (docText) docText.textContent = `${approvedDocs}/${totalRequired} Approved`;
         });
 
-        // ─── Batch / Adviser Info ──────────────────────────────
-        // ✅ FIX: schema uses 'batch' not 'batchId'
-        if (data.batch) {
+       // ─── Batch / Adviser Info ──────────────────────────────
+        let hasBatch = !!data.batch;
+
+        if (hasBatch) {
             syncBatchData(data.batch, user.uid);
-        } else {
-            // Try to find batch by studentUids
-            const batchQ = query(
-                collection(db, "batches"),
-                where("studentUids", "array-contains", user.uid)
+
+            // ─── Real-time OJT Hours Progress ─────────────────────
+            const qLogs = query(
+                collection(db, "attendance"),
+                where("uid", "==", user.uid)
             );
-            const bSnap = await getDocs(batchQ);
-            if (!bSnap.empty) syncBatchData(bSnap.docs[0].id, user.uid);
+
+            onSnapshot(qLogs, (snapshot) => {
+                let totalApprovedHrs = 0;
+
+                snapshot.forEach(logDoc => {
+                    const log = logDoc.data();
+                    if ((log.status || '').toLowerCase() === 'approved') {
+                        totalApprovedHrs += computeHoursDecimal(log.timeIn, log.timeOut);
+                    }
+                });
+
+                const pct = reqHrs > 0
+                    ? Math.min((totalApprovedHrs / reqHrs) * 100, 100)
+                    : 0;
+
+                const progressFill = document.getElementById('profile-progress-fill');
+                const progressText = document.getElementById('profile-progress-text');
+                const compHoursDisp = document.getElementById('display-comp-hours');
+
+                if (progressFill) progressFill.style.width = `${pct}%`;
+                if (progressText) progressText.textContent = `${Math.round(pct)}%`;
+                if (compHoursDisp) compHoursDisp.textContent = `${totalApprovedHrs.toFixed(1)} hrs`;
+            });
+
+            // ─── Real-time Document Progress ──────────────────────
+            const qDocs = query(
+                collection(db, "checklist"),
+                where("uid", "==", user.uid)
+            );
+
+            onSnapshot(qDocs, (snapshot) => {
+                const totalRequired = 13;
+                let approvedDocs = 0;
+
+                snapshot.forEach(d => {
+                    if (d.data().status === 'Approved') approvedDocs++;
+                });
+
+                const docPct = Math.min((approvedDocs / totalRequired) * 100, 100);
+
+                const docFill = document.getElementById('doc-progress-fill');
+                const docText = document.getElementById('doc-progress-text');
+
+                if (docFill) docFill.style.width = `${docPct}%`;
+                if (docText) docText.textContent = `${approvedDocs}/${totalRequired} Approved`;
+            });
+
+        } else {
+            // ─── NO BATCH → HIDE PROGRESS UI ──────────────────────
+            const progressCard = document.querySelector('.profile-summary-card');
+
+            if (progressCard) {
+                const progressSection = progressCard.querySelector('.progress-section');
+                if (progressSection) {
+                    progressSection.style.display = 'none';
+                }
+            }
+
+            // Optional: still show batch fallback UI
+            console.log("No batch assigned — progress hidden.");
         }
 
     } catch (e) {

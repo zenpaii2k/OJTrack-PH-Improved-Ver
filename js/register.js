@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase-config.js';
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
-    doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp, query, collection, where, getDocs, arrayRemove
+    doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp, query, collection, where, getDocs, arrayRemove, runTransaction
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { initTheme, sanitizeText } from '../js/theme.js';
 
@@ -22,6 +22,7 @@ async function waitForAuthReady() {
 // ─── INVITE CONTEXT (for batch registration links) ───────────
 const urlParams  = new URLSearchParams(window.location.search);
 const inviteId   = urlParams.get('inviteId');
+
 let inviteData = null;
 let currentRole = 'student';
 
@@ -89,17 +90,42 @@ function showError(msg) {
 }
 
 async function checkExistingUser(email) {
-    const q = query(collection(db, "users"), where("email", "==", email));
+    const q = query(
+        collection(db, "users"),
+        where("email", "==", email.toLowerCase())
+    );
+
     const snap = await getDocs(q);
 
-    if (!snap.empty) {
-        return snap.docs[0]; // existing user
-    }
-    return null;
+    if (snap.empty) return null;
+
+    const docSnap = snap.docs[0];
+
+    return {
+        id: docSnap.id,
+        data: () => docSnap.data()
+    };
+}
+
+async function getUserBatch(uid) {
+    const q = query(
+        collection(db, "batches"),
+        where("studentUids", "array-contains", uid)
+    );
+
+    const snap = await getDocs(q);
+
+    if (snap.empty) return null;
+
+    const batchDoc = snap.docs[0];
+
+    return {
+        id: batchDoc.id,
+        data: () => batchDoc.data()
+    };
 }
 
 // ---- VALIDATE INVITE
-
 async function validateInvite(id) {
     if (!id) return null;
 
@@ -110,12 +136,11 @@ async function validateInvite(id) {
 
     const data = snap.data();
 
-    if (data.status !== "pending" || data.usedBy) {
-        throw new Error("Invite no longer valid.");
+    if (data.status !== "pending") {
+        throw new Error("Invite already used.");
     }
 
     return { ref, invite: data };
-
 }
 
 async function removeStudentFromAllBatches(uid) {
@@ -149,9 +174,59 @@ const ensureAuth = async () => {
     });
 };
 
+async function applyInvite(uid) {
+    if (!inviteId || !inviteData) return;
+
+    const batchRef = doc(db, "batches", inviteData.batchId);
+    const inviteRef = doc(db, "invitations", inviteId);
+    const userRef = doc(db, "users", uid);
+
+    await runTransaction(db, async (tx) => {
+
+        const [inviteSnap, batchSnap] = await Promise.all([
+            tx.get(inviteRef),
+            tx.get(batchRef)
+        ]);
+
+        if (!inviteSnap.exists()) throw new Error("Invite no longer exists.");
+        if (!batchSnap.exists()) throw new Error("Batch not found.");
+
+        const invite = inviteSnap.data();
+
+        if (invite.status !== "pending") {
+            throw new Error("Invite already used.");
+        }
+
+        // Ensure idempotent batch assignment
+        const batch = batchSnap.data();
+        const currentUids = batch.studentUids || [];
+
+        const updatedUids = currentUids.includes(uid)
+            ? currentUids
+            : [...currentUids, uid];
+
+        tx.update(batchRef, {
+            studentUids: updatedUids
+        });
+
+        tx.update(inviteRef, {
+            status: "used",
+            usedBy: uid,
+            usedAt: serverTimestamp()
+        });
+
+        tx.update(userRef, {
+            batch: invite.batchId,
+            supervisorId: invite.supervisorId || null,
+            updatedAt: serverTimestamp()
+        });
+    });
+}
+
 // ─── ROLE SWITCHING ──────────────────────────────────────────
-function toggleRegRole (role) {
 window.toggleRegRole = toggleRegRole;
+
+function toggleRegRole(role) {
     currentRole = role;
 
     document.getElementById('student-only-fields').style.display =
@@ -164,7 +239,7 @@ window.toggleRegRole = toggleRegRole;
     document.getElementById('btn-supervisor').classList.toggle('active', role === 'supervisor');
 
     updateRequiredFields(role);
-};
+}
 
 function updateRequiredFields(role) {
     const studentRequired    = ['std-school','std-course','std-year','std-section','std-company','std-total-hours'];
@@ -188,10 +263,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const result = await validateInvite(inviteId);
-            inviteData = result.invite; 
+            inviteData = result.invite;
+
+            if (inviteData?.email) {
+                const emailInput = document.getElementById('reg-email');
+                    if (emailInput && inviteData?.email) {
+                        emailInput.value = inviteData.email.toLowerCase();
+                        emailInput.disabled = true;
+                    }
+            }
+
         } catch (err) {
-            alert(err.message);
-            window.location.href = '/index.html';
+            console.error("INVITE ERROR:", err);
+
+            showBannerError(err.message || "Invalid invite link.");
+
+            // optional UX: disable form completely
+            form.querySelectorAll("input, button").forEach(el => {
+                if (el.type !== "button") el.disabled = true;
+            });
+
             return;
         }
     }
@@ -201,65 +292,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupPasswordStrength();
     setupPasswordToggle();
     setupFormValidation();
-
-    if (inviteId && inviteData?.email) {
-    const emailInput = document.getElementById('reg-email');
-
-    emailInput.value = inviteData.email.toLowerCase();
-    emailInput.disabled = true;
-}
-
-if (inviteId && inviteData?.email) {
-    const existingSnap = await checkExistingUser(inviteData.email);
-
-        if (existingSnap) {
-            const existingData = existingSnap.data();
-
-            let password;
-
-    try {
-        password = await showReRegModal(existingData);
-    } catch {
-        return;
-    }
-
-    try {
-        await signInWithEmailAndPassword(auth, existingData.email, password);
-    } catch (err) {
-        showBannerError("Incorrect password.");
-        return;
-    }
-
-    await handleReturningInviteUser(existingSnap.id, existingData);
-        }
-    }
 });
 
-async function handleReturningInviteUser(uid, userData) {
-    setLoading(true);
-    const batchId = inviteData?.batchId;
+async function ensureUserDoc(uid, payload) {
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
 
-    try {
-        // 2. Add to NEW batch
-        if (batchId) {
-            await updateDoc(doc(db, "batches", batchId), {
-                studentUids: arrayUnion(uid)
-            });
-        }
-
-        await updateDoc(doc(db, "users", uid), {
-            batch: batchId ?? null,
-            supervisorId: inviteData?.supervisorId ?? null,
-            updatedAt: serverTimestamp(),
-            // Ensure you aren't trying to update 'role' or 'uid' here
-        });
-
-        window.location.replace("/student/dashboard.html");
-
-    } catch (err) {
-        console.error("Invite Update Error:", err);
-        showBannerError("Permission denied: Could not join batch.");
-        setLoading(false);
+    if (!snap.exists()) {
+        await setDoc(ref, payload);
     }
 }
 
@@ -468,80 +508,83 @@ form.addEventListener('submit', async (e) => {
         const email = document.getElementById('reg-email').value.trim().toLowerCase();
         const password = document.getElementById('reg-password').value;
 
-        const fname = sanitizeInput(document.getElementById('reg-firstname').value);
-        const lname = sanitizeInput(document.getElementById('reg-surname').value);
+        let userCred;
 
-        let authUser;
-
-        // ─────────────────────────────
-        // TRY CREATE ACCOUNT (ONLY FLOW)
-        // ─────────────────────────────
+        // ───────────── CREATE ACCOUNT ─────────────
         try {
-            const cred = await createUserWithEmailAndPassword(auth, email, password);
-            authUser = cred.user;
-
+            userCred = await createUserWithEmailAndPassword(auth, email, password);
         } catch (err) {
 
+            // CASE: USER ALREADY EXISTS
             if (err.code === "auth/email-already-in-use") {
 
                 const existingSnap = await checkExistingUser(email);
 
                 if (!existingSnap) {
-                    throw new Error("Account exists but no user record found.");
+                    throw new Error("User exists in Auth but no Firestore profile found.");
                 }
 
-                const existingData = existingSnap.data();
+                const uid = existingSnap.id;
 
-                const confirmed = await showReRegModal(existingData).catch(() => false);
+                let enteredPassword;
 
-                if (!confirmed) {
+                try {
+                    enteredPassword = await showReRegModal(existingSnap.data());
+                } catch (e) {
                     setLoading(false);
-                    return; // ⛔ STOP instead of throwing
-                }
-
-                // ✅ INVITE FLOW (this is your main case)
-                if (inviteId) {
-                    showBannerError("Account already exists. Please log in to continue.");
                     return;
                 }
 
-                // ❌ Non-invite → send to login instead
-                showBannerError("Account already exists. Please log in.");
-                setLoading(false);
+                await signInWithEmailAndPassword(auth, email, enteredPassword);
+
+                const user = await waitForAuthReady();
+
+                if (!user) throw new Error("Auth failed after login");
+
+                if (inviteId) {
+                    await handleReturningInviteUser(uid, existingSnap.data());
+                }
+
+                window.location.replace("/student/dashboard.html");
                 return;
             }
 
+            // CASE: REAL AUTH ERROR
             throw err;
         }
 
-        const uid = authUser.uid;
+        // ───────── NEW USER FLOW ─────────
+        const uid = userCred.user.uid;
 
-        const payload =
-            currentRole === "student"
-                ? buildStudentPayload(uid, email)
-                : buildSupervisorPayload(uid, email);
+        const payload = currentRole === "student"
+            ? buildStudentPayload(uid, email)
+            : buildSupervisorPayload(uid, email);
 
-        // ─────────────────────────────
-        // SAVE USER DATA
-        // ─────────────────────────────
-        await setDoc(doc(db, "users", uid), payload, { merge: true });
+        await setDoc(doc(db, "users", uid), payload);
 
-        if (inviteData?.batchId) {
-            await updateDoc(doc(db, "batches", inviteData.batchId), {
-                studentUids: arrayUnion(uid)
-            });
+        if (inviteId && inviteData) {
+            await applyInvite(uid);
         }
 
-        // ─────────────────────────────
-        // REDIRECT
-        // ─────────────────────────────
         window.location.replace("/student/dashboard.html");
 
     } catch (err) {
+        console.error(err);
         showBannerError(err.message);
         setLoading(false);
     }
 });
+
+async function handleReturningInviteUser(uid, userData) {
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+        throw new Error("Authentication not ready");
+    }
+
+    await applyInvite(currentUser.uid);
+
+}
 
 function buildStudentPayload(uid, email) {
     const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
@@ -564,7 +607,7 @@ function buildStudentPayload(uid, email) {
 
         // ─── CORE USER ─────────────────────
         role: currentRole,
-        email,
+        email: email.toLowerCase(),
         firstName,
         surname,
         name: `${firstName} ${surname}`,
@@ -638,6 +681,14 @@ function showReRegModal(userData) {
     const info  = document.getElementById("reRegInfo");
     const pass  = document.getElementById("reRegPassword");
 
+    if (!modal) {
+        console.error("Re-registration modal element not found in DOM");
+        return Promise.reject("Modal missing");
+    }
+
+    // Force display
+    modal.classList.remove("hidden");
+    modal.style.display = "flex"; 
     document.body.classList.add("modal-open");
 
     info.innerHTML = `
@@ -649,16 +700,13 @@ function showReRegModal(userData) {
         </div>
     `;
 
-    modal.classList.remove("hidden");
-    pass.value = "";
-    pass.focus();
-
     return new Promise((resolve, reject) => {
         const confirmBtn = document.getElementById("confirmReReg");
         const cancelBtn  = document.getElementById("cancelReReg");
 
         function cleanup() {
             modal.classList.add("hidden");
+            modal.style.display = "none"; // Hide explicitly
             document.body.classList.remove("modal-open");
 
             confirmBtn.onclick = null;
