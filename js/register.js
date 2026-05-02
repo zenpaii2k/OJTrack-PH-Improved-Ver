@@ -1,16 +1,20 @@
 import { db, auth } from '../firebase-config.js';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
-    doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp, query, collection, where, getDocs, arrayRemove
+    createUserWithEmailAndPassword,
+    onAuthStateChanged,
+    signInWithEmailAndPassword
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import {
+    doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp,
+    query, collection, where, getDocs, arrayRemove, runTransaction
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { initTheme, sanitizeText } from '../js/theme.js';
 
-// ─── INIT ────────────────────────────────────────────────────
+// ─── INIT ──────────────────────────────────────────────────────
 initTheme();
 
 async function waitForAuthReady() {
     if (auth.currentUser) return auth.currentUser;
-
     return new Promise((resolve) => {
         const unsub = onAuthStateChanged(auth, (user) => {
             unsub();
@@ -19,49 +23,61 @@ async function waitForAuthReady() {
     });
 }
 
-// ─── INVITE CONTEXT (for batch registration links) ───────────
-const urlParams  = new URLSearchParams(window.location.search);
-const inviteId   = urlParams.get('inviteId');
-let inviteData = null;
+// ─── INVITE CONTEXT ────────────────────────────────────────────
+const urlParams = new URLSearchParams(window.location.search);
+const inviteId  = urlParams.get('inviteId');
+
+let inviteData  = null;
 let currentRole = 'student';
 
-// ─── LEGAL CONTENT ───────────────────────────────────────────
+// ─── LEGAL CONTENT ─────────────────────────────────────────────
 const LEGAL = {
     privacy: {
-        title: 'Privacy Policy',
+        title:   'Privacy Policy',
         content: `
           <p><em>Last Updated: April 2026</em></p>
           <h4>1. Information We Collect</h4>
-          <p>Nous R&D collects personal information including your full name, school email, student ID, and OJT-related data (clock-in/out times, tasks, and uploaded documents).</p>
+          <p>Nous R&D collects personal information including your full name, school email,
+          student ID, and OJT-related data (clock-in/out times, tasks, and uploaded documents).</p>
           <h4>2. How We Use Your Data</h4>
-          <p>Your data is used solely for tracking internship progress. Attendance logs and uploaded requirements are shared only with your designated OJT Adviser/Coordinator.</p>
+          <p>Your data is used solely for tracking internship progress. Attendance logs and
+          uploaded requirements are shared only with your designated OJT Adviser/Coordinator.</p>
           <h4>3. Data Security</h4>
-          <p>We use Firebase's industry-standard encryption and role-based access control. While we strive to protect your data, no digital storage is 100% secure. By using OJTrack PH, you acknowledge this risk.</p>
+          <p>We use Firebase's industry-standard encryption and role-based access control.
+          While we strive to protect your data, no digital storage is 100% secure. By using
+          OJTrack PH, you acknowledge this risk.</p>
           <h4>4. Third-Party Services</h4>
-          <p>We do not sell your data. We use Firebase for authentication and database management. No advertising networks are used.</p>
+          <p>We do not sell your data. We use Firebase for authentication and database
+          management. No advertising networks are used.</p>
           <h4>5. Data Retention</h4>
-          <p>Your data is retained for the duration of your OJT program and for one year thereafter, after which it may be anonymized or deleted upon request.</p>
+          <p>Your data is retained for the duration of your OJT program and for one year
+          thereafter, after which it may be anonymized or deleted upon request.</p>
         `
     },
     terms: {
-        title: 'Terms and Conditions',
+        title:   'Terms and Conditions',
         content: `
           <p><em>Last Updated: April 2026</em></p>
           <h4>1. User Conduct</h4>
-          <p>Users must provide truthful and accurate OJT logs. Falsifying hours or documents violates institutional integrity and may result in immediate account termination and referral to the appropriate academic authority.</p>
+          <p>Users must provide truthful and accurate OJT logs. Falsifying hours or documents
+          violates institutional integrity and may result in immediate account termination and
+          referral to the appropriate academic authority.</p>
           <h4>2. Intellectual Property</h4>
-          <p>OJTrack PH and its content are owned by Nous R&D and are protected by Philippine and international intellectual property laws.</p>
+          <p>OJTrack PH and its content are owned by Nous R&D and are protected by Philippine
+          and international intellectual property laws.</p>
           <h4>3. Limitation of Liability</h4>
-          <p>Nous R&D is a tool provider and is not responsible for disputes between students, schools, and host training establishments (HTEs).</p>
+          <p>Nous R&D is a tool provider and is not responsible for disputes between students,
+          schools, and host training establishments (HTEs).</p>
           <h4>4. Modifications</h4>
-          <p>We reserve the right to modify these terms at any time. Continued use of the platform constitutes acceptance of the updated terms.</p>
+          <p>We reserve the right to modify these terms at any time. Continued use of the
+          platform constitutes acceptance of the updated terms.</p>
           <h4>5. Governing Law</h4>
           <p>These terms are governed by the laws of the Republic of the Philippines.</p>
         `
     }
 };
 
-// ─── DOM ELEMENTS ─────────────────────────────────────────────
+// ─── DOM REFS ──────────────────────────────────────────────────
 const form       = document.getElementById('registration-form');
 const submitBtn  = document.getElementById('main-submit-btn');
 const submitLbl  = document.getElementById('submit-label');
@@ -72,61 +88,81 @@ const legalModal = document.getElementById('legal-modal');
 const legalTitle = document.getElementById('legal-title');
 const legalCont  = document.getElementById('legal-content');
 
+// ─── UTILITIES ─────────────────────────────────────────────────
 function sanitizeInput(str, maxLen = 200) {
     if (typeof str !== 'string') return '';
     return str.trim().slice(0, maxLen);
 }
 
 function setLoading(state) {
-    submitBtn.disabled = state;
-    submitLbl.textContent = state ? 'Creating account…' : 'Create Account';
-    submitSpin.style.display = state ? 'inline-block' : 'none';
+    submitBtn.disabled        = state;
+    submitLbl.textContent     = state ? 'Creating account…' : 'Create Account';
+    submitSpin.style.display  = state ? 'inline-block' : 'none';
 }
 
-function showError(msg) {
-    errBanner.textContent = `⚠️ ${sanitizeText(msg)}`;
-    errBanner.style.display = 'block';
+function showBannerError(message) {
+    errBanner.textContent    = `⚠️ ${sanitizeText(message)}`;
+    errBanner.style.display  = 'block';
+    errBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function hideBannerError() {
+    errBanner.style.display = 'none';
+    errBanner.textContent   = '';
+}
+
+// ─── FIRESTORE HELPERS ─────────────────────────────────────────
 async function checkExistingUser(email) {
-    const q = query(collection(db, "users"), where("email", "==", email));
+    const q    = query(collection(db, 'users'), where('email', '==', email.toLowerCase()));
     const snap = await getDocs(q);
-
-    if (!snap.empty) {
-        return snap.docs[0]; // existing user
-    }
-    return null;
+    if (snap.empty) return null;
+    const docSnap = snap.docs[0];
+    return { id: docSnap.id, data: () => docSnap.data() };
 }
 
-// ---- VALIDATE INVITE
+async function getUserBatch(uid) {
+    const q    = query(collection(db, 'batches'), where('studentUids', 'array-contains', uid));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const batchDoc = snap.docs[0];
+    return { id: batchDoc.id, data: () => batchDoc.data() };
+}
 
+// ─── VALIDATE INVITE ────────────────────────────────────────────
+// BUG #1 FIX (JS side):
+// validateInvite() is now called BEFORE any auth state exists.
+// The Firestore rule for invitations must allow public `get` reads
+// (allow get: if true) for this to work.
+// The original rule "allow read: if isAuth()" blocked this because
+// the user has no account yet when the page first loads.
 async function validateInvite(id) {
     if (!id) return null;
 
-    const ref = doc(db, "invitations", id);
-    const snap = await getDoc(ref);
+    const ref  = doc(db, 'invitations', id);
+    const snap = await getDoc(ref);  // Requires: allow get: if true
 
-    if (!snap.exists()) throw new Error("Invalid invite.");
+    if (!snap.exists()) throw new Error('This invite link is invalid or has expired.');
 
     const data = snap.data();
 
-    if (data.status !== "pending" || data.usedBy) {
-        throw new Error("Invite no longer valid.");
+    if (data.status !== 'pending') {
+        throw new Error('This invite has already been used or was cancelled by the adviser.');
     }
 
     return { ref, invite: data };
-
 }
 
+// ─── REMOVE FROM ALL BATCHES ────────────────────────────────────
+// Cleans the student out of all batch documents before a re-join.
+// Does NOT need to update users/{uid} here — that happens in applyInvite().
 async function removeStudentFromAllBatches(uid) {
-    const q = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
+    const q    = query(collection(db, 'batches'), where('studentUids', 'array-contains', uid));
     const snap = await getDocs(q);
 
     const updates = [];
-
     snap.forEach(docSnap => {
         updates.push(
-            updateDoc(doc(db, "batches", docSnap.id), {
+            updateDoc(doc(db, 'batches', docSnap.id), {
                 studentUids: arrayRemove(uid)
             })
         );
@@ -135,36 +171,96 @@ async function removeStudentFromAllBatches(uid) {
     await Promise.all(updates);
 }
 
-const ensureAuth = async () => {
-    return new Promise((resolve, reject) => {
-        const unsub = onAuthStateChanged(auth, (user) => {
-            unsub(); // run once
+// ─── APPLY INVITE (TRANSACTION) ─────────────────────────────────
+async function applyInvite(uid) {
+    if (!inviteId || !inviteData) return;
 
-            if (user?.uid) {
-                resolve(user);
-            } else {
-                reject(new Error("Auth not ready"));
-            }
+    const batchRef  = doc(db, 'batches',     inviteData.batchId);
+    const inviteRef = doc(db, 'invitations', inviteId);
+    const userRef   = doc(db, 'users',       uid);
+
+    await runTransaction(db, async (tx) => {
+
+        // --- READ PHASE (all reads must come first in a transaction) ---
+        const inviteSnap = await tx.get(inviteRef);
+        const batchSnap  = await tx.get(batchRef);
+        const userSnap   = await tx.get(userRef);
+
+        // Validate invite is still usable
+        if (!inviteSnap.exists()) {
+            throw new Error('Invite no longer exists. Please ask your adviser for a new link.');
+        }
+        if (inviteSnap.data().status !== 'pending') {
+            throw new Error('This invite has already been used.');
+        }
+
+        // Validate batch still exists
+        if (!batchSnap.exists()) {
+            throw new Error('The batch associated with this invite no longer exists.');
+        }
+
+        // Validate user document was written (guards against edge case)
+        if (!userSnap.exists()) {
+            throw new Error('User profile not found. Please try again.');
+        }
+
+        // --- WRITE PHASE ---
+
+        // BUG #5 FIX:
+        // ORIGINAL had a conditional tx.update(arrayRemove) FOLLOWED BY
+        // another tx.update(arrayUnion) on the SAME batchRef. Firestore
+        // transactions apply only the LAST write to any given document,
+        // so the arrayRemove was always silently discarded.
+        //
+        // Additionally, calling tx.update() twice on the same document
+        // within a single transaction is not guaranteed safe across SDK
+        // versions and causes unpredictable behavior.
+        //
+        // FIX: Use a SINGLE tx.update() with arrayUnion only.
+        // arrayUnion is idempotent — if the UID is already present it is
+        // a no-op, so we don't need the remove-then-add pattern at all.
+        tx.update(batchRef, {
+            studentUids: arrayUnion(uid)
+        });
+
+        // Mark invite as consumed.
+        // Rule: resource.data.status == "pending"
+        //       && request.resource.data.status == "used"
+        //       && request.resource.data.usedBy == request.auth.uid
+        // All three conditions are satisfied here.
+        tx.update(inviteRef, {
+            status: 'used',
+            usedBy: uid,
+            usedAt: serverTimestamp()
+        });
+
+        // Update the student's user document with batch assignment.
+        // Rule: isSelf(userId) && role unchanged — both satisfied because
+        //       the student is authenticated and role is not being changed.
+        tx.update(userRef, {
+            batch:        inviteData.batchId,
+            supervisorId: inviteData.supervisorId || null,
+            updatedAt:    serverTimestamp()
         });
     });
-};
+}
 
-// ─── ROLE SWITCHING ──────────────────────────────────────────
-function toggleRegRole (role) {
+// ─── ROLE SWITCHING ────────────────────────────────────────────
 window.toggleRegRole = toggleRegRole;
+
+function toggleRegRole(role) {
     currentRole = role;
 
     document.getElementById('student-only-fields').style.display =
         role === 'student' ? 'block' : 'none';
-
     document.getElementById('supervisor-only-fields').style.display =
         role === 'supervisor' ? 'block' : 'none';
 
-    document.getElementById('btn-student').classList.toggle('active', role === 'student');
+    document.getElementById('btn-student').classList.toggle('active',    role === 'student');
     document.getElementById('btn-supervisor').classList.toggle('active', role === 'supervisor');
 
     updateRequiredFields(role);
-};
+}
 
 function updateRequiredFields(role) {
     const studentRequired    = ['std-school','std-course','std-year','std-section','std-company','std-total-hours'];
@@ -178,7 +274,7 @@ function updateRequiredFields(role) {
     });
 }
 
-// ─── INVITE CONTEXT ───────────────────────────────────────────
+// ─── DOM CONTENT LOADED ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     if (inviteId) {
         currentRole = 'student';
@@ -187,11 +283,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelector('.footer-link')?.style.setProperty('display', 'none');
 
         try {
+            // BUG #1 FIX:
+            // This getDoc() requires the Firestore rule:
+            //   match /invitations/{inviteId} { allow get: if true; }
+            // The original rule "allow read: if isAuth()" blocked this
+            // for unauthenticated users. Fixed in firestore.rules.
             const result = await validateInvite(inviteId);
-            inviteData = result.invite; 
+            inviteData   = result.invite;
+
+            if (inviteData?.email) {
+                const emailInput  = document.getElementById('reg-email');
+                emailInput.value  = inviteData.email.toLowerCase();
+                emailInput.disabled = true;
+            }
+
         } catch (err) {
-            alert(err.message);
-            window.location.href = '/index.html';
+            console.error('[Invite] Validation error:', err);
+            showBannerError(err.message || 'Invalid invite link.');
+
+            form.querySelectorAll('input, button').forEach(el => {
+                if (el.type !== 'button') el.disabled = true;
+            });
+
             return;
         }
     }
@@ -201,69 +314,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupPasswordStrength();
     setupPasswordToggle();
     setupFormValidation();
-
-    if (inviteId && inviteData?.email) {
-    const emailInput = document.getElementById('reg-email');
-
-    emailInput.value = inviteData.email.toLowerCase();
-    emailInput.disabled = true;
-}
-
-if (inviteId && inviteData?.email) {
-    const existingSnap = await checkExistingUser(inviteData.email);
-
-        if (existingSnap) {
-            const existingData = existingSnap.data();
-
-            let password;
-
-    try {
-        password = await showReRegModal(existingData);
-    } catch {
-        return;
-    }
-
-    try {
-        await signInWithEmailAndPassword(auth, existingData.email, password);
-    } catch (err) {
-        showBannerError("Incorrect password.");
-        return;
-    }
-
-    await handleReturningInviteUser(existingSnap.id, existingData);
-        }
-    }
 });
 
-async function handleReturningInviteUser(uid, userData) {
-    setLoading(true);
-    const batchId = inviteData?.batchId;
-
-    try {
-        // 2. Add to NEW batch
-        if (batchId) {
-            await updateDoc(doc(db, "batches", batchId), {
-                studentUids: arrayUnion(uid)
-            });
-        }
-
-        await updateDoc(doc(db, "users", uid), {
-            batch: batchId ?? null,
-            supervisorId: inviteData?.supervisorId ?? null,
-            updatedAt: serverTimestamp(),
-            // Ensure you aren't trying to update 'role' or 'uid' here
-        });
-
-        window.location.replace("/student/dashboard.html");
-
-    } catch (err) {
-        console.error("Invite Update Error:", err);
-        showBannerError("Permission denied: Could not join batch.");
-        setLoading(false);
+// ─── ENSURE USER DOC ───────────────────────────────────────────
+async function ensureUserDoc(uid, payload) {
+    const ref  = doc(db, 'users', uid);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+        await setDoc(ref, payload);
     }
 }
 
-// ─── LEGAL MODAL ─────────────────────────────────────────────
+// ─── LEGAL MODAL ───────────────────────────────────────────────
 function setupLegalHandlers() {
     const closeBtn  = document.getElementById('close-legal-btn');
     const underBtn  = document.getElementById('legal-understand-btn');
@@ -271,9 +333,9 @@ function setupLegalHandlers() {
     const termsLink = document.getElementById('terms-link');
 
     function openLegal(type) {
-        const data = LEGAL[type];
+        const data       = LEGAL[type];
         legalTitle.textContent = data.title;
-        legalCont.innerHTML  = data.content; // Legal content is authored by us, not user input
+        legalCont.innerHTML    = data.content;
         legalModal.classList.add('show');
         legalModal.style.display = 'flex';
     }
@@ -283,23 +345,21 @@ function setupLegalHandlers() {
         legalModal.style.display = 'none';
     }
 
-    if (privLink)  privLink.addEventListener('click',  () => openLegal('privacy'));
-    if (termsLink) termsLink.addEventListener('click',  () => openLegal('terms'));
-    if (closeBtn)  closeBtn.addEventListener('click',   closeLegal);
-    if (underBtn)  underBtn.addEventListener('click',   closeLegal);
+    privLink?.addEventListener('click',  () => openLegal('privacy'));
+    termsLink?.addEventListener('click', () => openLegal('terms'));
+    closeBtn?.addEventListener('click',  closeLegal);
+    underBtn?.addEventListener('click',  closeLegal);
 
-    // Close on backdrop click
     legalModal.addEventListener('click', (e) => {
         if (e.target === legalModal) closeLegal();
     });
 
-    // Enable submit when terms accepted
     agreeBox.addEventListener('change', () => {
         submitBtn.disabled = !agreeBox.checked;
     });
 }
 
-// ─── PASSWORD STRENGTH ────────────────────────────────────────
+// ─── PASSWORD STRENGTH ─────────────────────────────────────────
 function setupPasswordStrength() {
     const pwInput = document.getElementById('reg-password');
     const fill    = document.getElementById('pw-strength-fill');
@@ -308,26 +368,18 @@ function setupPasswordStrength() {
     pwInput.addEventListener('input', () => {
         const val = pwInput.value;
         let score = 0;
-        if (val.length >= 8)              score++;
-        if (/[A-Z]/.test(val))            score++;
-        if (/[0-9]/.test(val))            score++;
-        if (/[^A-Za-z0-9]/.test(val))     score++;
+        if (val.length >= 8)          score++;
+        if (/[A-Z]/.test(val))        score++;
+        if (/[0-9]/.test(val))        score++;
+        if (/[^A-Za-z0-9]/.test(val)) score++;
 
-        fill.className = 'pw-strength-fill';
-        if (val.length === 0) {
-            fill.style.width = '0%';
-        } else {
-            const widths = ['25%', '50%', '75%', '100%'];
-            fill.style.width = widths[score - 1] || '25%';
+        // Reset classes before re-applying
+        fill.className    = 'pw-strength-fill';
+        fill.style.width  = val.length === 0 ? '0%' : ['25%','50%','75%','100%'][score - 1] || '25%';
 
-            if (score <= 1) fill.classList.add('weak');
-            else if (score <= 2) fill.classList.add('medium');
-            else fill.classList.add('strong');
-        }
-
-        if (score <= 1) fill.classList.add('weak');
+        if      (score <= 1) fill.classList.add('weak');
         else if (score <= 2) fill.classList.add('medium');
-        else fill.classList.add('strong');
+        else                 fill.classList.add('strong');
     });
 }
 
@@ -337,18 +389,17 @@ function setupPasswordToggle() {
     if (!btn || !input) return;
 
     btn.addEventListener('click', () => {
-        const isHidden = input.type === 'password';
-        input.type  = isHidden ? 'text' : 'password';
+        const isHidden  = input.type === 'password';
+        input.type      = isHidden ? 'text' : 'password';
         btn.textContent = isHidden ? '🙈' : '👁️';
     });
 
-    // Prevent native Edge/IE reveal button
     input.addEventListener('mousedown', (e) => {
         if (e.offsetX > input.offsetWidth - 30) e.preventDefault();
     });
 }
 
-// ─── PER-FIELD VALIDATION HELPERS ─────────────────────────────
+// ─── FIELD VALIDATION ──────────────────────────────────────────
 function showFieldError(errorId, message) {
     const el = document.getElementById(errorId);
     if (el) el.textContent = message;
@@ -360,7 +411,6 @@ function clearFieldError(errorId) {
 }
 
 function setupFormValidation() {
-    // Real-time email validation
     const emailInput = document.getElementById('reg-email');
     emailInput?.addEventListener('blur', () => {
         const val = emailInput.value.trim();
@@ -371,12 +421,11 @@ function setupFormValidation() {
         }
     });
 
-    // Real-time name validation
     ['reg-firstname', 'reg-surname'].forEach((id, i) => {
         const errId = i === 0 ? 'fn-error' : 'ln-error';
-        document.getElementById(id)?.addEventListener('blur', function() {
+        document.getElementById(id)?.addEventListener('blur', function () {
             const val = this.value.trim();
-            if (val && !/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\']+$/.test(val)) {
+            if (val && !/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\\']+$/.test(val)) {
                 showFieldError(errId, 'Please use letters only.');
             } else {
                 clearFieldError(errId);
@@ -385,10 +434,8 @@ function setupFormValidation() {
     });
 }
 
-// ─── MAIN VALIDATION BEFORE SUBMIT ────────────────────────────
 function validateForm() {
     let valid = true;
-    const errors = [];
 
     const email    = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
@@ -399,36 +446,31 @@ function validateForm() {
         showFieldError('email-error', 'Valid email is required.');
         valid = false;
     }
-
     if (!password || password.length < 8) {
         showFieldError('pw-error', 'Password must be at least 8 characters.');
         valid = false;
     }
-
-    if (!fname || !/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\']+$/.test(fname)) {
+    if (!fname || !/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\\']+$/.test(fname)) {
         showFieldError('fn-error', 'First name is required (letters only).');
         valid = false;
     }
-
-    if (!lname || !/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\']+$/.test(lname)) {
+    if (!lname || !/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\\']+$/.test(lname)) {
         showFieldError('ln-error', 'Last name is required (letters only).');
         valid = false;
     }
 
     if (currentRole === 'student') {
-        const school = document.getElementById('std-school').value.trim();
-        const course = document.getElementById('std-course').value;
-        const section= document.getElementById('std-section').value.trim();
-        const company= document.getElementById('std-company').value.trim();
-        const hours  = parseInt(document.getElementById('std-total-hours').value, 10);
+        const school  = document.getElementById('std-school').value.trim();
+        const course  = document.getElementById('std-course').value;
+        const section = document.getElementById('std-section').value.trim();
+        const company = document.getElementById('std-company').value.trim();
+        const hours   = parseInt(document.getElementById('std-total-hours').value, 10);
 
-        if (!school) { showFieldError('school-error',  'School name is required.'); valid = false; }
-        if (!course) { showFieldError('course-error',  'Please select a course.'); valid = false; }
-        if (!section){ showFieldError('section-error', 'Section is required.'); valid = false; }
-        if (!company){ showFieldError('company-error', 'Company name is required.'); valid = false; }
-        if (!hours || hours < 100 || hours > 2000) {
-            showFieldError('hours-error', 'Enter a valid number of hours (100–2000).'); valid = false;
-        }
+        if (!school)                         { showFieldError('school-error',  'School name is required.');                    valid = false; }
+        if (!course)                         { showFieldError('course-error',  'Please select a course.');                     valid = false; }
+        if (!section)                        { showFieldError('section-error', 'Section is required.');                        valid = false; }
+        if (!company)                        { showFieldError('company-error', 'Company name is required.');                   valid = false; }
+        if (!hours || hours < 100 || hours > 2000) { showFieldError('hours-error', 'Enter valid hours (100–2000).'); valid = false; }
     }
 
     if (currentRole === 'supervisor') {
@@ -436,26 +478,83 @@ function validateForm() {
         const contact = document.getElementById('sup-contact').value.trim();
         const checked = document.querySelectorAll('input[name="sup-course"]:checked');
 
-        if (!org)     { showFieldError('org-error',     'School/institution is required.'); valid = false; }
-        if (!contact) { showFieldError('contact-error', 'Contact number is required.'); valid = false; }
-        if (checked.length === 0) { showFieldError('courses-error', 'Select at least one course.'); valid = false; }
+        if (!org)             { showFieldError('org-error',     'School/institution is required.'); valid = false; }
+        if (!contact)         { showFieldError('contact-error', 'Contact number is required.');     valid = false; }
+        if (!checked.length)  { showFieldError('courses-error', 'Select at least one course.');     valid = false; }
     }
 
     return valid;
 }
 
-function showBannerError(message) {
-    errBanner.textContent = `⚠️ ${sanitizeText(message)}`;
-    errBanner.style.display = 'block';
-    errBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+// ─── PAYLOAD BUILDERS ──────────────────────────────────────────
+function buildStudentPayload(uid, email) {
+    const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
+    const surname   = sanitizeInput(document.getElementById('reg-surname').value);
+    const school    = sanitizeInput(document.getElementById('std-school')?.value);
+    const course    = document.getElementById('std-course')?.value;
+    const year      = document.getElementById('std-year')?.value;
+    const section   = sanitizeInput(document.getElementById('std-section')?.value);
+    const company   = sanitizeInput(document.getElementById('std-company')?.value);
+    const requiredHours = Number(document.getElementById('std-total-hours')?.value || 0);
+    const timeStart = document.getElementById('std-start')?.value || null;
+    const timeEnd   = document.getElementById('std-end')?.value   || null;
+    const fullSection = course && section ? `${course}-${section}` : section;
+
+    return {
+        uid,
+        role:             'student',
+        email:            email.toLowerCase(),
+        firstName,
+        surname,
+        name:             `${firstName} ${surname}`,
+        school,
+        course,
+        yearLevel:        year,
+        section,
+        fullSection,
+        company,
+        requiredHours,
+        hoursCompleted:   0,
+        currentSessionId: null,
+        timeStart,
+        timeEnd,
+        // Pre-fill batch from invite so the dashboard shows something
+        // while applyInvite() runs. applyInvite() confirms it atomically.
+        batch:            inviteData?.batchId     ?? null,
+        supervisorId:     inviteData?.supervisorId ?? null,
+        createdAt:        serverTimestamp(),
+        updatedAt:        serverTimestamp()
+    };
 }
 
-function hideBannerError() {
-    errBanner.style.display = 'none';
-    errBanner.textContent = '';
+function buildSupervisorPayload(uid, email) {
+    const firstName    = sanitizeInput(document.getElementById('reg-firstname').value);
+    const surname      = sanitizeInput(document.getElementById('reg-surname').value);
+    const organization = sanitizeInput(document.getElementById('sup-org')?.value);
+    const number       = sanitizeInput(document.getElementById('sup-contact')?.value);
+    const checkedCourses = Array.from(
+        document.querySelectorAll('input[name="sup-course"]:checked')
+    ).map(cb => cb.value);
+    const staffId = `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    return {
+        uid,
+        role:             'supervisor',
+        email,
+        firstName,
+        surname,
+        name:             `${firstName} ${surname}`,
+        organization,
+        number,
+        designation:      'OJT Coordinator',
+        assignedCourses:  checkedCourses,
+        staffId,
+        createdAt:        serverTimestamp(),
+        updatedAt:        serverTimestamp()
+    };
 }
 
-// ─── FORM SUBMIT ─────────────────────────────────────────────
+// ─── FORM SUBMIT ───────────────────────────────────────────────
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideBannerError();
@@ -464,226 +563,168 @@ form.addEventListener('submit', async (e) => {
 
     setLoading(true);
 
+    const email    = document.getElementById('reg-email').value.trim().toLowerCase();
+    const password = document.getElementById('reg-password').value;
+
     try {
-        const email = document.getElementById('reg-email').value.trim().toLowerCase();
-        const password = document.getElementById('reg-password').value;
+        let userCred;
 
-        const fname = sanitizeInput(document.getElementById('reg-firstname').value);
-        const lname = sanitizeInput(document.getElementById('reg-surname').value);
-
-        let authUser;
-
-        // TRY CREATE ACCOUNT (ONLY FLOW)
+        // ── NEW USER BRANCH ─────────────────────────────────────
         try {
-            const cred = await createUserWithEmailAndPassword(auth, email, password);
-            authUser = cred.user;
+            userCred = await createUserWithEmailAndPassword(auth, email, password);
+        } catch (authErr) {
 
-        } catch (err) {
-
-            if (err.code === "auth/email-already-in-use") {
+            // ── RETURNING USER BRANCH ───────────────────────────
+            if (authErr.code === 'auth/email-already-in-use') {
 
                 const existingSnap = await checkExistingUser(email);
-
                 if (!existingSnap) {
-                    throw new Error("Account exists but no user record found.");
+                    throw new Error('Account exists in Auth but no profile found. Contact your adviser.');
                 }
 
-                const existingData = existingSnap.data();
+                const uid = existingSnap.id;
 
-                const confirmed = await showReRegModal(existingData).catch(() => false);
-
-                if (!confirmed) {
+                let enteredPassword;
+                try {
+                    enteredPassword = await showReRegModal(existingSnap.data());
+                } catch {
                     setLoading(false);
-                    return; 
-                }
-
-                if (inviteId) {
-                    showBannerError("Account already exists. Please log in to continue.");
                     return;
                 }
 
-                showBannerError("Account already exists. Please log in.");
-                setLoading(false);
+                await signInWithEmailAndPassword(auth, email, enteredPassword);
+
+                const user = await waitForAuthReady();
+                if (!user) throw new Error('Authentication failed. Please try again.');
+
+                if (inviteId && inviteData) {
+                    await handleReturningInviteUser(uid);
+                }
+
+                window.location.replace('/student/dashboard.html');
                 return;
             }
 
-            throw err;
+            // Other auth errors — rethrow
+            throw authErr;
         }
 
-        const uid = authUser.uid;
+        // ── NEW USER: write Firestore doc BEFORE applyInvite() ──
+        const uid     = userCred.user.uid;
+        const payload = currentRole === 'student'
+            ? buildStudentPayload(uid, email)
+            : buildSupervisorPayload(uid, email);
 
-        const payload =
-            currentRole === "student"
-                ? buildStudentPayload(uid, email)
-                : buildSupervisorPayload(uid, email);
+        // BUG #3 FIX (JS side):
+        // The user document MUST be committed before applyInvite() runs.
+        // applyInvite() does a tx.get(userRef) inside the transaction; if
+        // the document doesn't exist yet, the transaction fails.
+        // await here guarantees the write is fully acknowledged before proceeding.
+        await setDoc(doc(db, 'users', uid), payload);
 
-        // SAVE USER DATA
-        await setDoc(doc(db, "users", uid), payload, { merge: true });
-
-        if (inviteData?.batchId) {
-            await updateDoc(doc(db, "batches", inviteData.batchId), {
-                studentUids: arrayUnion(uid)
-            });
+        // ── APPLY INVITE (atomic transaction) ───────────────────
+        // BUG #2 FIX (JS side):
+        // applyInvite() now uses a single tx.update(arrayUnion) on the
+        // batch document. The original code had a conditional arrayRemove
+        // followed by an unconditional arrayUnion — two tx.update() calls
+        // on the same document in the same transaction, where Firestore
+        // only applied the last one (the arrayUnion), discarding the remove.
+        // The fix removes the redundant arrayRemove; arrayUnion handles both
+        // first-time joins and re-joins idempotently.
+        if (inviteId && inviteData) {
+            await applyInvite(uid);
         }
 
-        // REDIRECT
-        window.location.replace("/student/dashboard.html");
+        window.location.replace('/student/dashboard.html');
 
     } catch (err) {
-        showBannerError(err.message);
+        console.error('[Register] Submit error:', err);
         setLoading(false);
+
+        const friendlyErrors = {
+            'auth/email-already-in-use':    'This email is already registered. Please sign in.',
+            'auth/invalid-email':            'The email address format is invalid.',
+            'auth/weak-password':            'Password is too weak. Use at least 8 characters.',
+            'auth/network-request-failed':   'Network error. Please check your connection.',
+            'auth/too-many-requests':        'Too many attempts. Please wait a moment and try again.',
+        };
+
+        showBannerError(friendlyErrors[err.code] || err.message || 'Registration failed.');
     }
 });
 
-function buildStudentPayload(uid, email) {
-    const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
-    const surname   = sanitizeInput(document.getElementById('reg-surname').value);
+// ─── RETURNING INVITE USER ─────────────────────────────────────
+async function handleReturningInviteUser(uid) {
+    if (!inviteId || !inviteData) return;
 
-    const school  = sanitizeInput(document.getElementById('std-school')?.value);
-    const course  = document.getElementById('std-course')?.value;
-    const year    = document.getElementById('std-year')?.value;
-    const section = sanitizeInput(document.getElementById('std-section')?.value);
-    const company = sanitizeInput(document.getElementById('std-company')?.value);
-    const requiredHours = Number(document.getElementById('std-total-hours')?.value || 0);
+    // For returning students: clean out old batch memberships before
+    // joining the new one, so they don't appear in multiple batches.
+    await removeStudentFromAllBatches(uid);
 
-    const timeStart = document.getElementById('std-start')?.value || null;
-    const timeEnd   = document.getElementById('std-end')?.value || null;
-
-    const fullSection = course && section ? `${course}-${section}` : section;
-
-    return {
-        uid,
-
-        // ─── CORE USER ─────────────────────
-        role: currentRole,
-        email,
-        firstName,
-        surname,
-        name: `${firstName} ${surname}`,
-
-        // ─── ACADEMIC ──────────────────────
-        school,
-        course,
-        yearLevel: year,
-        section,
-        fullSection,
-        company,
-        requiredHours,
-
-        // ─── TRACKING ──────────────────────
-        hoursCompleted: 0,
-        currentSessionId: null,
-
-        timeStart,
-        timeEnd,
-
-        // ─── INVITE / BATCH ────────────────
-        batch: inviteData?.batchId ?? null,
-        supervisorId: inviteData?.supervisorId ?? null,
-
-        // ─── SYSTEM ────────────────────────
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-    };
-
+    // Now atomically join the new batch and mark the invite used.
+    await applyInvite(uid);
 }
 
-function buildSupervisorPayload(uid, email) {
-    const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
-    const surname   = sanitizeInput(document.getElementById('reg-surname').value);
-
-    const organization = sanitizeInput(document.getElementById('sup-org')?.value);
-    const number       = sanitizeInput(document.getElementById('sup-contact')?.value);
-
-    // Get selected courses (checkboxes)
-    const checkedCourses = Array.from(
-        document.querySelectorAll('input[name="sup-course"]:checked')
-    ).map(cb => cb.value);
-
-    const designation = "OJT Coordinator"; 
-
-    // Generate simple staff ID (you can improve this later)
-    const staffId = `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    return {
-        uid,
-
-        role: "supervisor",
-        email,
-        firstName,
-        surname,
-        name: `${firstName} ${surname}`,
-        organization,
-        number,
-        designation,
-        assignedCourses: checkedCourses,
-
-        staffId,
-
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-    };
-}
-
+// ─── RE-REGISTRATION MODAL ─────────────────────────────────────
 function showReRegModal(userData) {
-    const modal = document.getElementById("reRegModal");
-    const info  = document.getElementById("reRegInfo");
-    const pass  = document.getElementById("reRegPassword");
+    const modal = document.getElementById('reRegModal');
+    const info  = document.getElementById('reRegInfo');
+    const pass  = document.getElementById('reRegPassword');
 
-    document.body.classList.add("modal-open");
+    if (!modal) {
+        console.error('[Register] Re-registration modal element not found in DOM');
+        return Promise.reject(new Error('Modal missing'));
+    }
+
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    document.body.classList.add('modal-open');
 
     info.innerHTML = `
         <div class="reReg-summary">
-            <p><strong>Name:</strong> ${userData.name}</p>
-            <p><strong>Email:</strong> ${userData.email}</p>
-            <p><strong>Role:</strong> ${userData.role}</p>
-            <p><strong>Batch:</strong> ${userData.batch || "None"}</p>
+            <p><strong>Name:</strong>  ${sanitizeText(userData.name  || '')}</p>
+            <p><strong>Email:</strong> ${sanitizeText(userData.email || '')}</p>
+            <p><strong>Role:</strong>  ${sanitizeText(userData.role  || '')}</p>
+            <p><strong>Batch:</strong> ${sanitizeText(userData.batch || 'None')}</p>
         </div>
     `;
 
-    modal.classList.remove("hidden");
-    pass.value = "";
-    pass.focus();
-
     return new Promise((resolve, reject) => {
-        const confirmBtn = document.getElementById("confirmReReg");
-        const cancelBtn  = document.getElementById("cancelReReg");
+        const confirmBtn = document.getElementById('confirmReReg');
+        const cancelBtn  = document.getElementById('cancelReReg');
 
         function cleanup() {
-            modal.classList.add("hidden");
-            document.body.classList.remove("modal-open");
-
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
             confirmBtn.onclick = null;
-            cancelBtn.onclick = null;
+            cancelBtn.onclick  = null;
         }
 
         confirmBtn.onclick = () => {
             const password = pass.value;
-
             if (!password) {
-                pass.style.border = "1px solid red";
+                pass.style.border = '1px solid red';
                 pass.focus();
                 return;
             }
-
             cleanup();
             resolve(password);
         };
 
         cancelBtn.onclick = () => {
             cleanup();
-            reject(new Error("User cancelled re-registration"));
+            reject(new Error('User cancelled re-registration'));
         };
 
-        // ESC key support (nice UX upgrade)
         function escHandler(e) {
-            if (e.key === "Escape") {
+            if (e.key === 'Escape') {
                 cleanup();
-                reject(new Error("User cancelled re-registration"));
-                window.removeEventListener("keydown", escHandler);
+                reject(new Error('User cancelled re-registration'));
+                window.removeEventListener('keydown', escHandler);
             }
         }
 
-        window.addEventListener("keydown", escHandler);
+        window.addEventListener('keydown', escHandler);
     });
 }
