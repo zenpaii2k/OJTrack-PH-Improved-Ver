@@ -93,7 +93,7 @@ async function loadUserProfile(user) {
             setEl('chip-school', `📁 No batch assigned`);
             setEl('chip-course', `🎓 Awaiting adviser assignment`);
 
-            return; // ⛔ STOP further OJT features
+            return; 
         }
 
         // ─── NORMAL STATE ─────────────────────────────
@@ -139,7 +139,7 @@ function showNoAdviserNotice() {
         </div>
     `;
 
-    // 👇 insert directly UNDER header
+    // insert directly UNDER header
     header.insertAdjacentElement('afterend', notice);
 }
 
@@ -172,7 +172,6 @@ function showNoBatchState(user, data) {
 // ─── PROGRESS STATS ──────────────────────────────────────────
 function updateProgressStats(data) {
     const required  = parseFloat(data.requiredHours) || 600;
-    // ✅ FIX: schema uses 'hoursCompleted' not 'completedHours'
     const completed = parseFloat(data.hoursCompleted) || 0;
     const remaining = Math.max(0, required - completed);
     const pct       = required > 0 ? Math.min(100, (completed / required) * 100) : 0;
@@ -187,7 +186,6 @@ function updateProgressStats(data) {
 
     animateProgressRing(pct);
 
-    // ✅ FIX: schema uses 'timeStart'/'timeEnd' not 'shiftStart'/'shiftEnd'
     const shiftHrs = estimateDailyHours(data.timeStart, data.timeEnd);
     const daysLeft = shiftHrs > 0 ? Math.ceil(remaining / shiftHrs) : null;
     setEl('days-sub', daysLeft
@@ -241,7 +239,6 @@ function syncAttendanceLogs(uid) {
 
         tbody.innerHTML = snap.docs.map(d => {
             const log = d.data();
-            // ✅ FIX: 'displayDate' not 'date'; 'attachment' not 'attachmentUrl'
             const date  = sanitizeText(log.displayDate || formatTimestamp(log.timestamp));
             const tIn   = sanitizeText(log.timeIn  || '—');
             const tOut  = sanitizeText(log.timeOut || '—');
@@ -256,7 +253,6 @@ function syncAttendanceLogs(uid) {
             };
             const statusBadge = statusMap[(log.status || 'pending').toLowerCase()] || statusMap.pending;
 
-            // ✅ FIX: use 'attachment' field
             const hasFile = log.attachment;
             const fileBtn = hasFile
                 ? `<button class="view-btn" onclick="openAttachment(this)" data-src="${sanitizeText(log.attachment)}">View</button>`
@@ -297,7 +293,6 @@ function syncAttendanceLogs(uid) {
 
 // ─── FEEDBACK ────────────────────────────────────────────────
 function loadFeedback(uid) {
-    // ✅ FIX: orderBy('timestamp') — matches what checkstudentdatabase.js writes
     const q = query(
         collection(db, 'students', uid, 'feedback'),
         orderBy('timestamp', 'desc'),
@@ -315,7 +310,6 @@ function loadFeedback(uid) {
 
         container.innerHTML = snap.docs.map(d => {
             const fb     = d.data();
-            // ✅ FIX: adviser writes 'senderName' not 'adviserName'
             const author = sanitizeText(fb.senderName || fb.adviserName || 'Adviser');
             const msg    = sanitizeText(fb.message || '');
             const time   = formatTimestamp(fb.timestamp);

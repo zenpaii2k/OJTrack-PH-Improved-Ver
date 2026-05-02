@@ -21,7 +21,7 @@
 
 <body>
 
-    <!-- // page wrapper -->
+    <!-- page wrapper -->
     <div class="reg-page">
 
         <!-- LEFT PANEL — Branding -->
@@ -41,7 +41,7 @@
             <p class="panel-footer">By Nous R&amp;D Team &bull; Las Piñas City, PH</p>
         </aside>
 
-        <!-- RIGHT PANEL — Registration Form -->
+        <!-- Registration Form -->
         <main class="reg-panel-right">
             <div class="reg-card" role="main">
 
@@ -50,7 +50,7 @@
                     <p>Select your role to begin your OJT journey</p>
                 </div>
 
-                <!-- ROLE SELECTOR -->
+                <!-- role select -->
                 <div class="role-selector-main" role="group" aria-label="Account role">
                     <button type="button" id="btn-student"    class="role-opt active"   onclick="toggleRegRole('student')">
                         🎓 I am a Student
@@ -60,10 +60,10 @@
                     </button>
                 </div>
 
-                <!-- ─── REGISTRATION FORM ─────────────────── -->
+                <!-- ─── registration form ─────────────────── -->
                 <form id="registration-form" novalidate>
 
-                    <!-- ACCOUNT SECURITY -->
+                    <!-- account security -->
                     <fieldset class="form-section">
                         <legend>
                             <span class="step-num" aria-label="Step 1">1</span>
@@ -102,7 +102,7 @@
                                     <button type="button" class="pw-toggle" id="toggle-pw" aria-label="Toggle password visibility">👁️</button>
                                 </div>
                                 <span class="field-hint" id="pw-hint">At least 8 characters.</span>
-                                <!-- Password strength indicator -->
+                                <!-- password strength indicator -->
                                 <div class="pw-strength-bar" aria-label="Password strength">
                                     <div class="pw-strength-fill" id="pw-strength-fill"></div>
                                 </div>
@@ -111,7 +111,7 @@
                         </div>
                     </fieldset>
 
-                    <!-- PERSONAL PROFILE -->
+                    <!-- profile -->
                     <fieldset class="form-section">
                         <legend>
                             <span class="step-num" aria-label="Step 2">2</span>
@@ -151,14 +151,14 @@
                         </div>
                     </fieldset>
 
-                    <!-- ROLE-SPECIFIC DETAILS -->
+                    <!-- role-specific details -->
                     <fieldset class="form-section" id="dynamic-fields">
                         <legend>
                             <span class="step-num" aria-label="Step 3">3</span>
                             OJT Deployment Details
                         </legend>
 
-                        <!-- ── STUDENT FIELDS ── -->
+                        <!-- student fields -->
                         <div id="student-only-fields">
                             <div class="input-grid">
 
@@ -256,7 +256,7 @@
                             </div>
                         </div>
 
-                        <!-- ── ADVISER FIELDS ── -->
+                        <!-- adviser fields-->
                         <div id="supervisor-only-fields" style="display:none;">
                             <div class="input-grid">
 
@@ -301,7 +301,7 @@
                         </div>
                     </fieldset>
 
-                    <!-- LEGAL CONSENT -->
+                    <!-- legal checkbox -->
                     <div class="legal-consent-section">
                         <label class="check-label consent-label" for="reg-agree-terms">
                             <input type="checkbox" id="reg-agree-terms" required>
@@ -315,10 +315,10 @@
                         </label>
                     </div>
 
-                    <!-- GLOBAL ERROR BANNER -->
+                    <!-- error banner -->
                     <div id="form-error-banner" class="error-banner" style="display:none;" role="alert"></div>
 
-                    <!-- SUBMIT -->
+                    <!-- submit btn -->
                     <button
                         type="submit"
                         class="btn-submit-reg"
@@ -330,6 +330,7 @@
 
                 </form>
 
+                <!-- re-registration modal -->
                 <div id="reRegModal" class="modal hidden" role="dialog" aria-modal="true">
                     <div class="modal-content">
                         <div class="modal-header">

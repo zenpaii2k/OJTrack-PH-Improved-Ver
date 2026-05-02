@@ -28,14 +28,12 @@ let currentMonth = new Date();
 protectPage('supervisor').then((user) => {
     if (!user) return;
 
-    // ✅ FIX: Wire ALL theme + UI controls
     setupThemeToggle('theme-toggle-btn');
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
     setupNotifDropdown();
     setupNotificationSystem(user.uid);
 
-    // ✅ FIX: Wire both logout buttons
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
     document.getElementById(id)?.addEventListener('click', async (e) => {
         e.preventDefault();

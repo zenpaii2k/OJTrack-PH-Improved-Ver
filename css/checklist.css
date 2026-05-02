@@ -1,9 +1,3 @@
-/* ─── checklist.css ──────────────────────────────────────────
-   Page-specific styles for student/checklist.html.
-   All sidebar, header, dropdown, and token rules → shared.css
-   This file ONLY contains checklist-unique layout and components.
-   ─────────────────────────────────────────────────────────── */
-
 /* ─── PAGE LAYOUT ────────────────────────────────────────────── */
 .checklist-layout {
     padding: 22px 24px;
@@ -100,9 +94,20 @@
     font-family: var(--font-body);
 }
 
-.btn-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
-.btn-action:active { transform: translateY(0); }
-.btn-action.primary   { background: var(--brand-gold); color: #000; }
+.btn-action:hover { 
+    filter: brightness(1.1); 
+    transform: translateY(-1px); 
+}
+
+.btn-action:active { 
+    transform: translateY(0);
+}
+
+.btn-action.primary { 
+    background: var(--brand-gold); 
+    color: #000; 
+}
+
 .btn-action.secondary {
     background: transparent;
     border: 1px solid var(--brand-gold);
@@ -110,7 +115,9 @@
 }
 
 /* ─── TABLE ──────────────────────────────────────────────────── */
-.table-responsive { overflow-x: auto; }
+.table-responsive { 
+    overflow-x: auto; 
+}
 
 .checklist-table {
     width: 100%;
@@ -141,8 +148,13 @@
     word-wrap: break-word;
 }
 
-.checklist-table tbody tr:last-child td { border-bottom: none; }
-.checklist-table tbody tr:hover td { background: var(--bg-elevated); }
+.checklist-table tbody tr:last-child td { 
+    border-bottom: none; 
+}
+
+.checklist-table tbody tr:hover td { 
+    background: var(--bg-elevated); 
+}
 
 .checklist-table th:nth-child(1) { width: 30%; }
 .checklist-table th:nth-child(2) { width: 25%; }
@@ -237,7 +249,6 @@
 }
 
 /* ─── UPLOAD MODAL ───────────────────────────────────────────── */
-/* Note: .modal-overlay base styles are in shared.css */
 .modal-content {
     background: var(--bg-surface);
     border: 1px solid var(--border-mid);
@@ -286,7 +297,9 @@
     transition: border-color var(--transition);
 }
 
-.upload-zone:hover { border-color: var(--brand-gold); }
+.upload-zone:hover { 
+    border-color: var(--brand-gold); 
+}
 
 .upload-zone input[type="file"] {
     color: var(--text-secondary);
@@ -312,8 +325,13 @@
     transition: filter var(--transition);
 }
 
-.btn-primary:hover { filter: brightness(1.1); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary:hover { 
+    filter: brightness(1.1); 
+}
+
+.btn-primary:disabled {
+     opacity: 0.5; cursor: not-allowed; 
+}
 
 .btn-secondary {
     background: var(--bg-elevated);
@@ -327,7 +345,9 @@
     transition: background var(--transition);
 }
 
-.btn-secondary:hover { background: var(--border); }
+.btn-secondary:hover { 
+    background: var(--border); 
+}
 
 /* ─── PREVIEW MODAL ──────────────────────────────────────────── */
 

@@ -225,25 +225,23 @@ function downloadPDF() {
 // ─── COMPILE ALL DATA ─────────────────────────────────────────
 async function compileFullData(uid) {
     try {
-        // 1. User profile
+        // User profile
         const userSnap = await getDoc(doc(db, "users", uid));
         const userData = userSnap.exists() ? userSnap.data() : {};
 
         reportData.personal = {
             name:    userData.name || `${userData.firstName || ''} ${userData.surname || ''}`.trim() || 'Student',
             school:  userData.school || 'N/A',
-            // ✅ FIX: schema uses 'fullSection'
             section: userData.fullSection || userData.section || 'N/A',
             company: userData.company || 'Not Assigned',
             course:  userData.course || 'N/A',
             uid:     uid,
         };
 
-        // ✅ FIX: 'requiredHours' ✓ correct; 'hoursCompleted' not 'completedHours'
         const required  = parseFloat(userData.requiredHours)  || 600;
         const completed = parseFloat(userData.hoursCompleted) || 0;
 
-        // 2. Get adviser name from batch
+        // Get adviser name from batch
         const batchQ   = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
         const batchSnap = await getDocs(batchQ);
         let adviserName = 'Not Assigned';
@@ -261,7 +259,7 @@ async function compileFullData(uid) {
 
         reportData.personal.supervisor = adviserName;
 
-        // 3. Populate UI
+        // Populate UI
         setText('pdf-name',       reportData.personal.name);
         setText('pdf-school',     reportData.personal.school);
         setText('pdf-section',    `${reportData.personal.course} — ${reportData.personal.section}`);
@@ -270,8 +268,7 @@ async function compileFullData(uid) {
         setText('pdf-hours',      `${completed.toFixed(1)} hrs`);
         setText('pdf-required',   `${required} hrs`);
 
-        // 4. Attendance logs
-        // ✅ FIX: where('uid'), orderBy('timestamp')
+        // Attendance logs
         const attQ   = query(
             collection(db, "attendance"),
             where("uid", "==", uid),
@@ -280,7 +277,7 @@ async function compileFullData(uid) {
         const attSnap = await getDocs(attQ);
         reportData.attendance = attSnap.docs.map(d => d.data());
 
-        // 5. Checklist
+        // Checklist
         const checkQ   = query(collection(db, "checklist"), where("uid", "==", uid));
         const checkSnap = await getDocs(checkQ);
         reportData.checklist = checkSnap.docs.map(d => d.data());

@@ -238,7 +238,6 @@ function selectStudent(studentId, name, batchName) {
         tbody.innerHTML = "";
         let approvedCount = 0;
 
-        // ✅ EMPTY STATE
         if (snapshot.empty) {
             tbody.innerHTML = `
                 <tr>
@@ -302,7 +301,7 @@ function selectStudent(studentId, name, batchName) {
     });
 }
 
-// Review and Feedback Modal Logic (Kept from previous version)
+// Review and Feedback Modal Logic
 
 window.openReviewModal = (docId, fileData, status, fileName, formKey) => {
     currentDocId = docId;
@@ -430,4 +429,5 @@ window.submitFeedback = async (status) => {
 };
 
 document.getElementById('btn-approve').onclick = () => submitFeedback("Approved");
+
 document.getElementById('btn-reject').onclick = () => submitFeedback("Rejected");

@@ -21,14 +21,12 @@ let currentSupervisorUid = null;
 protectPage('supervisor').then((user) => {
     currentSupervisorUid = user.uid;
 
-    // ✅ FIX: Wire ALL theme + UI controls
     setupThemeToggle('theme-toggle-btn');
     setupThemeToggle('sidebar-theme-btn');
     setupProfileDropdown();
     setupNotifDropdown();
     setupNotificationSystem(user.uid);
 
-    // ✅ FIX: Wire both logout buttons
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
     document.getElementById(id)?.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -57,8 +55,6 @@ async function loadSupervisorData(user) {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (!snap.exists()) return;
         const data = snap.data();
-
-        // ✅ FIX: 'surname' not 'lastName'
         const fullName = data.name
             || `${data.firstName || ''} ${data.surname || ''}`.trim()
             || 'OJT Adviser';
@@ -197,7 +193,6 @@ function setProgress(pct) {
 
     if (avgFill) {
         avgFill.style.width = `${pct}%`;
-        // Color-code the bar based on progress level
         if (pct >= 75)      avgFill.style.background = 'var(--success)';
         else if (pct >= 40) avgFill.style.background = 'var(--brand-gold)';
         else                avgFill.style.background = 'var(--danger)';

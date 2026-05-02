@@ -1,11 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!--
-      *** ANTI-FLASH SCRIPT — Keep this first! ***
-      Reads theme from localStorage BEFORE body renders to prevent
-      a visible white-to-dark flicker on page load.
-    -->
+
     <script>
         (function() {
             var t = localStorage.getItem('ojtrack-theme') || 'dark';
@@ -19,16 +15,13 @@
     <link rel="icon" type="image/png" href="/images/610551570_1263199728988936_4834396701990071248_n-removebg-preview.png">
     <title>OJTrack PH — Student Dashboard</title>
 
-    <!-- Shared Design System (replaces old dashboard.css) -->
     <link rel="stylesheet" href="/css/shared.css">
-    <!-- Page-specific overrides only -->
     <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 
 <body>
-    <!-- ═══════════════════════════════════════════
-         SIDEBAR NAVIGATION
-    ═══════════════════════════════════════════ -->
+
+         <!-- SIDEBAR NAVIGATION -->
     <nav class="side-navbar" aria-label="Student navigation">
         <div class="sidebar-logo">
             <a href="dashboard.html" title="Go to Dashboard">
@@ -54,9 +47,7 @@
         </div>
     </nav>
 
-    <!-- ═══════════════════════════════════════════
-         MAIN CONTENT
-    ═══════════════════════════════════════════ -->
+         <!-- MAIN CONTENT -->
     <div class="main-wrapper">
 
         <!-- TOP HEADER -->
@@ -206,7 +197,7 @@
                     </div>
                 </div>
 
-            </div><!-- /content-area -->
+            </div>
 
             <!-- RIGHT SIDEBAR -->
             <aside class="sidebar-widgets" aria-label="Widgets">
@@ -234,9 +225,8 @@
                 </div>
 
             </aside>
-
         </main>
-    </div><!-- /main-wrapper -->
+    </div>
 
     <script type="module" src="/js/dashboard.js"></script>
 </body>

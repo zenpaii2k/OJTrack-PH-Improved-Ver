@@ -473,9 +473,7 @@ form.addEventListener('submit', async (e) => {
 
         let authUser;
 
-        // ─────────────────────────────
         // TRY CREATE ACCOUNT (ONLY FLOW)
-        // ─────────────────────────────
         try {
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             authUser = cred.user;
@@ -496,16 +494,14 @@ form.addEventListener('submit', async (e) => {
 
                 if (!confirmed) {
                     setLoading(false);
-                    return; // ⛔ STOP instead of throwing
+                    return; 
                 }
 
-                // ✅ INVITE FLOW (this is your main case)
                 if (inviteId) {
                     showBannerError("Account already exists. Please log in to continue.");
                     return;
                 }
 
-                // ❌ Non-invite → send to login instead
                 showBannerError("Account already exists. Please log in.");
                 setLoading(false);
                 return;
@@ -521,9 +517,7 @@ form.addEventListener('submit', async (e) => {
                 ? buildStudentPayload(uid, email)
                 : buildSupervisorPayload(uid, email);
 
-        // ─────────────────────────────
         // SAVE USER DATA
-        // ─────────────────────────────
         await setDoc(doc(db, "users", uid), payload, { merge: true });
 
         if (inviteData?.batchId) {
@@ -532,9 +526,7 @@ form.addEventListener('submit', async (e) => {
             });
         }
 
-        // ─────────────────────────────
         // REDIRECT
-        // ─────────────────────────────
         window.location.replace("/student/dashboard.html");
 
     } catch (err) {

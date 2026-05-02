@@ -26,7 +26,7 @@ export function protectPage(allowedRole) {
                     const userRole = userData.role; // Assuming roles are 'student' or 'adviser'
                     const localSessionId = localStorage.getItem("ojt_session_id");
 
-                    // --- 1. SESSION VALIDATION (Prevent Double Login) ---
+                    // --- SESSION VALIDATION (Prevent Double Login) ---
                     if (userData.currentSessionId && userData.currentSessionId !== localSessionId) {
                         alert("Session Expired: Logged in on another device.");
                         await signOut(auth);
@@ -35,7 +35,7 @@ export function protectPage(allowedRole) {
                         return;
                     }
 
-                    // --- 2. ROLE-BASED ACCESS CONTROL (The "URL Guard") ---
+                    // --- ROLE-BASED ACCESS CONTROL (The "URL Guard") ---
                     if (userRole === allowedRole) {
                         // Correct user for this page - Show the content
                         document.body.style.display = 'block';

@@ -1,15 +1,3 @@
-/**
- * OJTrack PH — theme.js
- * ─────────────────────────────────────────────────────────────
- * Centralized theme management. Import this in every page JS.
- * 
- * Usage:
- *   import { initTheme, setupThemeToggle } from '/js/theme.js';
- *   initTheme();
- *   setupThemeToggle('theme-toggle-btn');  // pass your button ID
- * ─────────────────────────────────────────────────────────────
- */
-
 const THEME_KEY = 'ojtrack-theme';
 
 /**

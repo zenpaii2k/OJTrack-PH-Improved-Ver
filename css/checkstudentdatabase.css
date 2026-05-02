@@ -1,8 +1,3 @@
-/* ─── checkstudentdatabase.css ───────────────────────────────
-   Page-specific styles for supervisor/checkstudentdatabase.html.
-   All shared sidebar / header / token rules → shared.css
-   ─────────────────────────────────────────────────────────── */
-
 /* ─── PAGE LAYOUT ────────────────────────────────────────────── */
 .main-layout {
     padding: 22px 24px;
@@ -109,9 +104,18 @@
     background: var(--brand-gold-dim);
 }
 
-.student-row-name { font-weight: 600; }
-.student-row-section { color: var(--text-secondary); }
-.student-row-arrow { color: var(--text-muted); font-size: 0.75rem; }
+.student-row-name { 
+    font-weight: 600; 
+}
+
+.student-row-section { 
+    color: var(--text-secondary); 
+}
+
+.student-row-arrow { 
+    color: var(--text-muted); 
+    font-size: 0.75rem; 
+}
 
 /* ─── DETAIL VIEW ────────────────────────────────────────────── */
 .detail-header {
@@ -254,11 +258,24 @@
     transition: background var(--transition);
 }
 
-.log-card-item:last-child { border-bottom: none; }
-.log-card-item:hover { background: var(--bg-elevated); }
+.log-card-item:last-child { 
+    border-bottom: none; 
+}
 
-.log-card-item .log-date { font-weight: 600; color: var(--text-primary); }
-.log-card-item .log-time { color: var(--text-secondary); font-family: monospace; font-size: 0.8rem; }
+.log-card-item:hover { 
+    background: var(--bg-elevated); 
+}
+
+.log-card-item .log-date { 
+    font-weight: 600; 
+    color: var(--text-primary); 
+}
+
+.log-card-item .log-time { 
+    color: var(--text-secondary); 
+    font-family: monospace; 
+    font-size: 0.8rem; 
+}
 
 /* Remarks card */
 .remarks-card {
@@ -314,7 +331,9 @@
     align-self: flex-end;
 }
 
-.save-btn:hover { filter: brightness(1.1); }
+.save-btn:hover { 
+    filter: brightness(1.1); 
+}
 
 /* ─── RESPONSIVE ─────────────────────────────────────────────── */
 @media (max-width: 1100px) {

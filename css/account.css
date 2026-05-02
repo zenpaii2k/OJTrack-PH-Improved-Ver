@@ -97,7 +97,8 @@
 
 .highlight-yellow { 
     color: var(--brand-gold); 
-    font-weight: 700; }
+    font-weight: 700; 
+}
 
 /* ─── MAIN CONTENT GRID ──────────────────────────────────────── */
 .main-content-grid {

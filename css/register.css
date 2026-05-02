@@ -1,11 +1,6 @@
-/* ─── register.css ───────────────────────────────────────────
-   Styles for all-pov/register.html
-   Shared design tokens are in shared.css.
-   ─────────────────────────────────────────────────────────── */
-
 /* ─── TWO-PANEL PAGE LAYOUT ────────────────────────────────── */
 body {
-    display: block;            /* Override shared.css flex */
+    display: block;        
     min-height: 100vh;
 }
 
@@ -207,7 +202,6 @@ fieldset.form-section legend {
     gap: 16px;
 }
 
-/* Override shared.css .input-group to style reg-specific inputs */
 .reg-card .input-group input,
 .reg-card .input-group select,
 .reg-card .input-group textarea {
@@ -471,10 +465,6 @@ fieldset.form-section legend {
 input::-ms-reveal {
   display: none;
 }
-
-/* ─────────────────────────────
-   RE-REGISTER MODAL (ENHANCED)
-───────────────────────────── */
 
 .modal {
     position: fixed;

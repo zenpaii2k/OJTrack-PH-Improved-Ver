@@ -81,7 +81,7 @@ async function updateTotalStats(user) {
     } catch (e) { return new Set(); }
 }
 
-// --- 4. UI & INTERACTION HELPERS ---
+// UI & INTERACTION HELPERS 
 
 async function getStudentName(uid) {
     if (nameCache[uid]) return nameCache[uid];
@@ -266,7 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("generateInviteBtn")?.addEventListener("click", (e) => {
     e.preventDefault();
 
-    // ALWAYS re-check batch before generating
     if (!activeBatchId) {
         alert("No batch selected.");
         return;
@@ -318,7 +317,7 @@ async function loadBatches(uid) {
 
     await updateBatchStats(uid);
 
-    allBatchesCache = []; // reset cache
+    allBatchesCache = [];
     container.innerHTML = "";
 
     if (snapshot.empty) {
@@ -387,7 +386,6 @@ function filterBatches(keyword) {
 }
 
 window.deleteBatch = async function(batchId, batchName) {
-    // Standard confirmation dialog
     const proceed = confirm(`Are you sure you want to delete the batch "${batchName}"?\n\nThis will NOT delete the students' accounts, only this specific grouping.`);
     
     if (!proceed) return;
@@ -398,7 +396,6 @@ window.deleteBatch = async function(batchId, batchName) {
         
         alert("Batch deleted successfully.");
         
-        // Refresh the list using the current authenticated user's ID
         if (auth.currentUser) {
             loadBatches(auth.currentUser.uid);
         }
@@ -407,8 +404,6 @@ window.deleteBatch = async function(batchId, batchName) {
         alert("Error: Could not delete batch. Check your Firebase permissions.");
     }
 };
-
-// Inside batchmanagement.js -> window.generateinvitelink
 
 window.generateInviteLink = async function(batchIdOverride) {
 
@@ -430,7 +425,7 @@ window.generateInviteLink = async function(batchIdOverride) {
     try {
         const inviteRef = await addDoc(collection(db, "invitations"), {
             email,
-            batchId, // 🔥 ALWAYS scoped correctly
+            batchId, 
             supervisorId: auth.currentUser.uid,
             status: "pending",
             createdAt: serverTimestamp(),
@@ -668,7 +663,6 @@ window.removeStudent = async function(uid) {
         const batchRef = doc(db, "batches", activeBatchId);
         const userRef = doc(db, "users", uid);
 
-        // 1. Remove student from batch
         await updateDoc(batchRef, {
             studentUids: arrayRemove(uid)
         });

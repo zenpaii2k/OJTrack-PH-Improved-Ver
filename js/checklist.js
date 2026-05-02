@@ -61,7 +61,6 @@ protectPage('student').then(async (user) => {
         clearChecklistUI();
     }
 
-    // ✅ Logout wiring
     ['logout-link', 'sidebar-logout-btn'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -140,7 +139,7 @@ function showNoBatchState(user, data) {
         Uploading of OJT documents is disabled until you are assigned to a batch.
     `;
 
-    // 🎯 INSERT BELOW HEADER (like attendance page)
+    // INSERT BELOW HEADER (like attendance page)
     const header = document.querySelector(".dashboard-header");
     if (header && header.parentNode) {
         header.parentNode.insertBefore(notice, header.nextSibling);
@@ -266,7 +265,7 @@ function renderChecklistRow(opt, tbody, uid) {
     tbody.appendChild(row);
 }
 
-// ─── GLOBAL FUNCTIONS (called from HTML onclick) ───────────────
+// ─── GLOBAL FUNCTIONS ───────────────
 
 window.openUploadModal = async (type, specificKey = null) => {
     const user = auth.currentUser;
@@ -346,7 +345,6 @@ window.processUpload = async () => {
     }
 
     try {
-        // ✅ FETCH USER DATA FIRST
         const userSnap = await getDoc(doc(db, "users", user.uid));
         if (!userSnap.exists()) {
             throw new Error("User data not found.");
@@ -360,7 +358,6 @@ window.processUpload = async () => {
             return;
         }
 
-        // ✅ FETCH BATCH DATA
         const batchRef = doc(db, "batches", batchId);
         const batchSnap = await getDoc(batchRef);
 
@@ -397,7 +394,6 @@ window.processUpload = async () => {
             year: 'numeric'
         });
 
-        // ✅ SAVE DOCUMENT
         await setDoc(doc(db, "checklist", `${user.uid}_${selectedForm}`), {
             uid: user.uid,
             studentName,
@@ -410,8 +406,7 @@ window.processUpload = async () => {
             timestamp: serverTimestamp(),
             dismissedBy: [],
         });
-
-        // ✅ NOTIFY ADVISER
+        
         if (adviserUid) {
             await notifyDocumentSubmittedToAdviser(
                 adviserUid,

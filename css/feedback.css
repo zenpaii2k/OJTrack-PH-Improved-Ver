@@ -1,8 +1,3 @@
-/* ─── feedback.css ───────────────────────────────────────────
-   Page-specific styles for student/feedback.html.
-   Shared sidebar/header/widget styles → shared.css
-   ─────────────────────────────────────────────────────────── */
-
 /* ─── PAGE LAYOUT ────────────────────────────────────────────── */
 .feedback-layout {
     padding: 22px 24px;
@@ -125,7 +120,9 @@
     background: var(--brand-gold-dim);
 }
 
-.fb-card:hover { border-color: var(--border-mid); }
+.fb-card:hover { 
+    border-color: var(--border-mid); 
+}
 
 /* Adviser avatar */
 .fb-avatar {
@@ -143,7 +140,10 @@
     flex-shrink: 0;
 }
 
-.fb-body { flex: 1; min-width: 0; }
+.fb-body { 
+    flex: 1; 
+    min-width: 0; 
+}
 
 .fb-meta {
     display: flex;
@@ -185,7 +185,9 @@
     color: var(--brand-gold);
 }
 
-.fb-star.empty { color: var(--text-muted); }
+.fb-star.empty { 
+    color: var(--text-muted); 
+}
 
 /* Category badge */
 .fb-category {

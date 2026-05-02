@@ -230,11 +230,9 @@ function setupReviewButtons(reportDocId, studentUid, studentName) {
         rejectBtn.disabled = true;
     }
 
-    // Optional: store current context (safe fallback)
     currentReportDocId = reportDocId;
     currentStudentUid = studentUid;
 
-    // 🔥 Fetch latest status to control buttons
     getDoc(doc(db, "reports", reportDocId)).then(snap => {
         if (!snap.exists()) return;
 
@@ -607,7 +605,6 @@ async function displayFullReport(uid, data) {
 
     renderHistory(reportDoc.data().history || []);
 
-    // IMPORTANT: wait for DOM stability
     requestAnimationFrame(() => {
         setupReviewButtons(reportDoc.id, uid, fullName);
     });
@@ -674,7 +671,6 @@ async function submitDecision(reportDocId, decision, studentUid) {
     history: [...(data.history || []), entry]
         });
 
-        // 🔥 ADD THIS
         if (decision === "Approved") {
             await notifyReportApproved(studentUid, "Adviser");
         }

@@ -98,7 +98,7 @@ async function loadUserProfile(user) {
             parseFloat(userData.requiredHours) || 600
         );
 
-        return true; // ✅ valid student
+        return true; 
 
     } catch (e) {
         console.error('[Attendance] loadUserProfile:', e);
@@ -212,11 +212,9 @@ function setupForm(user) {
             const userData = userSnap.data();
             console.log("USER DATA:", userData);
 
-            // ✅ DEFINE FIRST
             const batchId = userData?.batchId || userData?.batch || null;
             console.log("BATCH ID:", batchId);
 
-            // ✅ THEN USE
             if (!batchId) {
                 showError("You cannot log attendance yet. No adviser has assigned you to a batch.");
                 
@@ -274,7 +272,6 @@ function setupForm(user) {
                 attachment = await fileToBase64(file);
             }
 
-            // ✅ SAVE LOG
             await addDoc(collection(db, 'attendance'), {
                 uid: user.uid,
                 displayDate,
@@ -287,7 +284,6 @@ function setupForm(user) {
                 dismissedBy: [],
             });
 
-            // ✅ NOTIFY
             if (adviserUid) {
                 await notifyLogSubmittedToAdviser(
                     adviserUid,
@@ -359,7 +355,6 @@ function showNoBatchState(user, data) {
         form.prepend(notice);
     }
 
-    // 🚫 Disable submission
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.textContent = '🚫 Cannot submit (No adviser yet)';
@@ -598,7 +593,7 @@ function renderCalendar(date) {
         }
 
         if (!status) {
-            el.classList.add('cal-empty'); // no log
+            el.classList.add('cal-empty');
         } else if (status === 'Approved') {
             el.classList.add('cal-approved');
         } else if (status === 'Rejected') {

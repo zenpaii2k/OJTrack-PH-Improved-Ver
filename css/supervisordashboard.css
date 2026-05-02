@@ -1,8 +1,3 @@
-/* ─── supervisordashboard.css ────────────────────────────────
-   Page-specific styles for supervisor/supervisordashboard.html.
-   All shared tokens & components are in shared.css.
-   ─────────────────────────────────────────────────────────── */
-
 /* 4-column stat grid (adviser has more stats) */
 .stats-4col {
     grid-template-columns: repeat(4, 1fr);

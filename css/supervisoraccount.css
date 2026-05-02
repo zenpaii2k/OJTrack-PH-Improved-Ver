@@ -1,8 +1,3 @@
-/* ─── supervisoraccount.css ─────────────────────────────────
-   Adviser-specific overrides layered on top of account.css.
-   Import order: shared.css → account.css → supervisoraccount.css
-   ─────────────────────────────────────────────────────────── */
-
 /* Large avatar in the summary banner */
 .adviser-avatar-row {
     display: flex;

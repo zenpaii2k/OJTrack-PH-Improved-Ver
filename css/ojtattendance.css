@@ -1,8 +1,3 @@
-/* ─── ojtattendance.css ──────────────────────────────────────
-   Page-specific styles for student/ojtattendance.html.
-   All sidebar, header, widget, and token rules live in shared.css.
-   ─────────────────────────────────────────────────────────── */
-
 /* ─── PAGE LAYOUT ────────────────────────────────────────────── */
 .tracker-main {
     padding: 22px 24px;
@@ -295,10 +290,19 @@
     font-size: 0.84rem;
 }
 
-.log-entry:last-child { border-bottom: none; }
+.log-entry:last-child { 
+    border-bottom: none; 
+}
 
-.log-date { font-weight: 600; color: var(--text-primary); }
-.log-time { color: var(--text-secondary); font-family: monospace; }
+.log-date { 
+    font-weight: 600; 
+    color: var(--text-primary);
+ }
+
+.log-time { 
+    color: var(--text-secondary); 
+    font-family: monospace; 
+}
 
 /* ─── SIDEBAR SUMMARY CARD ────────────────────────────────────── */
 .summary-card {

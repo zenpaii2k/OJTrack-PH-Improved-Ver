@@ -139,7 +139,7 @@ window.dismissSingleNotif = async (id, uid, type) => {
     }
 };
 
-// 3. Initialize Dashboard Logic
+// Initialize Dashboard Logic
 function initDashboard() {
     const select = document.getElementById('section-select');
     const backBtn = document.getElementById('back-to-list');
@@ -148,9 +148,6 @@ function initDashboard() {
         // Load the batches
         loadBatchDropdown();
         
-        // FIX: Remove existing listeners without cloning the node, 
-        // or just add the listener directly if this only runs once.
-        // If you must prevent multiple listeners:
         select.onchange = (e) => {
             if (e.target.value) {
                 loadStudentList(e.target.value);
@@ -166,7 +163,7 @@ function initDashboard() {
     }
 }
 
-// 4. Load Specific Batches
+// Load Specific Batches
 async function loadBatchDropdown() {
     const select = document.getElementById('section-select');
     if (!select) return;
@@ -196,8 +193,7 @@ async function loadBatchDropdown() {
             const batch = docSnap.data();
             const option = document.createElement('option');
             option.value = docSnap.id;
-            
-            // Matches "BSIT 311" as seen in your logs
+
             option.innerHTML = batch.name || `Batch ${docSnap.id.substring(0,5)}`;
             select.appendChild(option);
         });
@@ -335,7 +331,7 @@ async function loadStudentList(batchId) {
     }
 }
 
-// 1. Updated viewStudentDetails to handle "Approved" hours calculation
+// handle "approved" hours calculation
 async function viewStudentDetails(docId, studentData) {
     document.getElementById('student-list-view').style.display = 'none';
     document.getElementById('student-detail-view').style.display = 'block';
@@ -347,14 +343,13 @@ async function viewStudentDetails(docId, studentData) {
 
     const logContainer = document.getElementById('log-cards-container');
 
-    // 🔥 IMPORTANT: Unsubscribe previous listener
     if (unsubscribeStudentLogs) {
         unsubscribeStudentLogs();
     }
 
     const logQuery = query(
         collection(db, "attendance"),
-        where("uid", "==", activeStudentUid), // ✅ FIXED
+        where("uid", "==", activeStudentUid), 
         orderBy("timestamp", "desc")
     );
 
@@ -498,7 +493,7 @@ function calculateMinutes(t1, t2) {
     return parse(t2) - parse(t1);
 }
 
-// Optional: Allow the adviser to fix a mistake
+// Allow the adviser to fix a mistake
 window.revertToPending = async (logId) => {
     if(confirm("Revert this log to pending? This will remove the hours from the approved total.")) {
         await updateDoc(doc(db, "attendance", logId), { status: "Pending" });

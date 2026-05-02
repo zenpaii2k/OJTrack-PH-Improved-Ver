@@ -203,8 +203,6 @@ feedbackForm.addEventListener('submit', function (event) {
 
     const formData = new FormData(feedbackForm);
 
-    // Replace 'YOUR_FORM_ID' with the actual ID from formspree.io 
-    // This allows the browser to send the email directly to support@ojtrack.ph
     fetch("https://formspree.io/f/xwvrqyqj", {
         method: 'POST',
         body: formData,
@@ -215,7 +213,7 @@ feedbackForm.addEventListener('submit', function (event) {
     .then(response => {
         if (response.ok) {
             responseMessage.textContent = 'Success! Your feedback has been sent to NOUS R&D.';
-            responseMessage.style.color = '#28a745'; // Professional Green
+            responseMessage.style.color = '#28a745';
             feedbackForm.reset();
         } else {
             return response.json().then(data => {
@@ -230,7 +228,7 @@ feedbackForm.addEventListener('submit', function (event) {
     .catch(error => {
         console.error('Error:', error);
         responseMessage.textContent = 'Error: ' + error.message;
-        responseMessage.style.color = '#dc3545'; // Error Red
+        responseMessage.style.color = '#dc3545'; 
     })
     .finally(() => {
         submitBtn.disabled = false;

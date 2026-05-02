@@ -55,7 +55,6 @@ async function initializeApp(user) {
         if (!userSnap.exists()) return;
         const data = userSnap.data();
 
-        // ✅ FIX: 'surname' not 'lastName'
         const userName = data.name
             || `${data.firstName || ''} ${data.surname || ''}`.trim()
             || 'Student';
@@ -67,7 +66,6 @@ async function initializeApp(user) {
         setText('student-name',     userName);
         setText('display-school',   data.school || '—');
 
-        // ✅ FIX: 'fullSection' is the schema field
         const sectionDisplay = data.fullSection
             || ((data.course && data.section) ? `${data.course}-${data.section}` : '—');
         setText('display-section',  sectionDisplay);
@@ -80,24 +78,22 @@ async function initializeApp(user) {
         setVal('edit-full-name',    userName);
         setVal('edit-designation',  data.designation || 'Student');
         setVal('edit-email',        user.email);
-        // ✅ FIX: 'timeStart'/'timeEnd' (schema), with null guard
+
         const shiftStr = (data.timeStart && data.timeEnd)
             ? `${data.timeStart} - ${data.timeEnd}`
             : 'Not set';
         setVal('edit-hours', shiftStr);
 
         // ─── Real-time OJT Hours Progress ─────────────────────
-        // ✅ FIX: 'uid', 'timestamp', and case-insensitive status comparison
         const qLogs = query(
             collection(db, "attendance"),
-            where("uid", "==", user.uid)   // ✅ 'uid' not 'userId'
+            where("uid", "==", user.uid) 
         );
 
         onSnapshot(qLogs, (snapshot) => {
             let totalApprovedHrs = 0;
             snapshot.forEach(logDoc => {
                 const log = logDoc.data();
-                // ✅ FIX: status comparison is case-insensitive
                 if ((log.status || '').toLowerCase() === 'approved') {
                     totalApprovedHrs += computeHoursDecimal(log.timeIn, log.timeOut);
                 }
@@ -125,7 +121,6 @@ async function initializeApp(user) {
             const totalRequired = 13;
             let approvedDocs = 0;
             snapshot.forEach(d => {
-                // ✅ FIX: checklist uses "Approved" (capital A)
                 if (d.data().status === 'Approved') approvedDocs++;
             });
             const docPct = Math.min((approvedDocs / totalRequired) * 100, 100);
@@ -239,7 +234,6 @@ async function syncBatchData(batchId, myUid) {
         }
 
         // ─── Classmates ────────────────────────────────────────
-        // ✅ FIX: query by 'batch' field (schema), not 'batchId'
         const qMates = query(collection(db, "users"), where("batch", "==", batchId));
         const matesSnap = await getDocs(qMates);
 
