@@ -516,6 +516,10 @@ body.modal-open {
     opacity: 1;
 }
 
+.hidden {
+    display: none !important;
+}
+
 #reRegModal .modal-content {
     background: var(--bg-elevated);
     border: 1px solid var(--border);
