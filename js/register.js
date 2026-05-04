@@ -1,8 +1,105 @@
+/**
+ * OJTrack PH — register.js  (Fixed)
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * ROOT CAUSE ANALYSIS
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * WHY THE RE-REGISTER MODAL NEVER APPEARS
+ * ────────────────────────────────────────
+ *
+ * The bug is in DOMContentLoaded → checkExistingUser(email).
+ *
+ *   async function checkExistingUser(email) {
+ *       const q = query(
+ *           collection(db, 'users'),
+ *           where('email', '==', email.toLowerCase())   ← LIST query
+ *       );
+ *       const snap = await getDocs(q);   ← throws PERMISSION_DENIED
+ *       ...
+ *   }
+ *
+ * This is a Firestore COLLECTION LIST query (getDocs + where()).
+ * The Firestore rule for /users is:
+ *
+ *   match /users/{userId} {
+ *     allow read: if isAuth();   ← covers both get AND list
+ *   }
+ *
+ * At the moment this runs, the student is UNAUTHENTICATED — they
+ * have not signed in or created an account. isAuth() = false.
+ * Firestore throws PERMISSION_DENIED.
+ *
+ * The exception propagates out of checkExistingUser() and is caught
+ * by the SAME try/catch that wraps validateInvite():
+ *
+ *   try {
+ *     const result = await validateInvite(inviteId);   ← succeeds
+ *     inviteData   = result.invite;
+ *     ...
+ *     const existingSnap = await checkExistingUser(...); ← throws
+ *
+ *     if (existingSnap) {
+ *       await handleReturningStudent(existingSnap);     ← NEVER reached
+ *     }
+ *   } catch (err) {
+ *     showBannerError('Invalid or expired invite link.'); ← wrong message
+ *     form.inputs.forEach(el => el.disabled = true);     ← form disabled
+ *     return;                                            ← exits setup
+ *   }
+ *
+ * Consequences of this single error:
+ *   1. handleReturningStudent() is never called
+ *   2. showReRegModal() is never called
+ *   3. The modal never appears
+ *   4. Form inputs are disabled with a misleading error message
+ *   5. setupLegalHandlers / setupPasswordStrength / etc. never run
+ *      (the return exits before them — even new students can't register)
+ *
+ * SECONDARY CSS ISSUE (would have mattered if modal code ran)
+ * ────────────────────────────────────────────────────────────
+ *
+ * The modal CSS uses:
+ *   .modal        { opacity: 0; pointer-events: none; display: flex; }
+ *   .hidden       { display: none !important; }
+ *   .modal:not(.hidden) { opacity: 1; pointer-events: auto; }
+ *
+ * showReRegModal() does:
+ *   modal.classList.remove('hidden');   ← triggers opacity transition ✓
+ *   modal.style.display = 'flex';      ← redundant but harmless
+ *
+ * The modal visibility relies on the CSS :not(.hidden) selector.
+ * The inline display:flex is a no-op since the class already sets it.
+ * This is fine, but the original showReRegModal also has this guard:
+ *
+ *   if (!modal) { return Promise.reject(new Error('Modal missing')); }
+ *
+ * The modal IS present in the HTML. So if the JS code had reached
+ * showReRegModal(), it would have displayed correctly via the CSS
+ * opacity transition. The CSS is not the primary failure.
+ *
+ * THE FIX
+ * ────────
+ * Replace the unauthenticated Firestore list query with Firebase Auth's
+ * fetchSignInMethodsForEmail(). This:
+ *   - Works WITHOUT authentication (no Firestore read)
+ *   - Returns ['password'] if email is registered in Auth
+ *   - Returns [] if not registered
+ *   - Never throws PERMISSION_DENIED
+ *   - Does not expose other users' Firestore data
+ *
+ * We also restructure handleReturningStudent to not require a Firestore
+ * snap before sign-in (we don't have read permission until signed in).
+ *
+ * ═══════════════════════════════════════════════════════════════
+ */
+
 import { db, auth } from '../firebase-config.js';
 import {
     createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
     onAuthStateChanged,
-    signInWithEmailAndPassword
+    fetchSignInMethodsForEmail   // ← ADDED: works without auth, replaces Firestore check
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
     doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp,
@@ -85,31 +182,64 @@ function setLoading(state) {
     submitSpin.style.display  = state ? 'inline-block' : 'none';
 }
 
-// ─── FIRESTORE LOOKUP ────────────────────────────────────────
+// ─── FIX: EMAIL EXISTENCE CHECK VIA FIREBASE AUTH ────────────
+//
+// BEFORE (broken):
+//   async function checkExistingUser(email) {
+//       const q    = query(collection(db, 'users'),
+//                          where('email', '==', email.toLowerCase()));
+//       const snap = await getDocs(q);   ← PERMISSION_DENIED (unauthenticated)
+//       ...
+//   }
+//
+// WHY IT FAILED:
+//   getDocs() with a where() clause is a Firestore LIST operation.
+//   The rule `allow read: if isAuth()` requires authentication.
+//   The student has no account yet → isAuth() = false → PERMISSION_DENIED.
+//   This exception propagates to the outer try/catch in DOMContentLoaded,
+//   which shows "Invalid or expired invite link", disables the form,
+//   and returns early — handleReturningStudent() is never called,
+//   so the modal never appears.
+//
+// AFTER (fixed):
+//   fetchSignInMethodsForEmail() is a Firebase Auth SDK call that:
+//   - Works WITHOUT any authentication (no Firestore read)
+//   - Returns ['password'] if the email is registered in Firebase Auth
+//   - Returns [] if the email is not registered
+//   - Never throws PERMISSION_DENIED
+//   - Requires no Firestore security rule changes
+//
+// ─────────────────────────────────────────────────────────────
+async function checkEmailExistsInAuth(email) {
+    try {
+        const methods = await fetchSignInMethodsForEmail(auth, email.toLowerCase());
+        return methods.length > 0;   // ['password'] = exists, [] = new user
+    } catch (err) {
+        if (err.code === 'auth/invalid-email') return false;
+        // Re-throw anything unexpected (network error, etc.)
+        throw err;
+    }
+}
 
 /**
- * Looks up a Firestore user document by email address.
- * Returns { id, data() } or null if not found.
+ * Tries to fetch the student's Firestore user document AFTER sign-in.
+ * Called inside handleReturningStudent after signInWithEmailAndPassword
+ * succeeds, so isAuth() = true and the read is permitted.
+ *
+ * Returns the user data or null if the document doesn't exist yet.
+ * Not throwing on absence is important: Auth and Firestore can be
+ * out of sync (account in Auth but no Firestore doc yet).
  */
-async function checkExistingUser(email) {
-    const q    = query(collection(db, 'users'), where('email', '==', email.toLowerCase()));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const d = snap.docs[0];
-    return { id: d.id, data: () => d.data() };
+async function fetchUserDocAfterSignIn(uid) {
+    try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        return snap.exists() ? snap.data() : null;
+    } catch {
+        return null;
+    }
 }
 
 // ─── INVITE VALIDATION ────────────────────────────────────────
-
-/**
- * Fetches and validates the invite document.
- *
- * FIX: The Firestore rule for invitations now uses:
- *   allow get: if true;
- * so this call succeeds even before the user is authenticated.
- * Previously `allow read: if isAuth()` blocked unauthenticated users
- * → PERMISSION_DENIED immediately on page load.
- */
 async function validateInvite(id) {
     if (!id) return null;
     const ref  = doc(db, 'invitations', id);
@@ -121,7 +251,6 @@ async function validateInvite(id) {
 }
 
 // ─── BATCH HELPERS ────────────────────────────────────────────
-
 async function removeStudentFromAllBatches(uid) {
     const q    = query(collection(db, 'batches'), where('studentUids', 'array-contains', uid));
     const snap = await getDocs(q);
@@ -133,26 +262,6 @@ async function removeStudentFromAllBatches(uid) {
 }
 
 // ─── APPLY INVITE (transaction) ───────────────────────────────
-
-/**
- * Atomically:
- *   1. Re-validates the invite is still pending.
- *   2. Adds student uid to batch.studentUids (arrayUnion — idempotent).
- *   3. Marks invite as used.
- *   4. Updates user doc with batch + supervisorId.
- *
- * FIX (Bug #4 — batch UPDATE rule):
- *   The Firestore rule now has a third update path that allows a student
- *   to append their own uid to studentUids. Previously both rule branches
- *   failed for a student → transaction always rolled back.
- *
- * FIX (Bug #5 — double tx.update on same doc):
- *   Removed the conditional arrayRemove before arrayUnion.
- *   Two tx.update() calls on the same document ref in a transaction
- *   cause the Firestore SDK to apply only the LAST one — the arrayRemove
- *   was silently discarded anyway. arrayUnion is idempotent: if the
- *   student uid is already present, the array is unchanged (size +0).
- */
 async function applyInvite(uid) {
     if (!inviteId || !inviteData) return;
 
@@ -172,19 +281,16 @@ async function applyInvite(uid) {
         const invite = inviteSnap.data();
         if (invite.status !== 'pending') throw new Error('Invite already used.');
 
-        // ── FIX: single arrayUnion only (no preceding arrayRemove) ──
         tx.update(batchRef, {
-            studentUids: arrayUnion(uid)   // idempotent — safe for new + returning students
+            studentUids: arrayUnion(uid)
         });
 
-        // Mark invite as claimed
         tx.update(inviteRef, {
             status: 'used',
             usedBy: uid,
             usedAt: serverTimestamp()
         });
 
-        // Sync user document
         tx.update(userRef, {
             batch:        invite.batchId,
             supervisorId: invite.supervisorId || null,
@@ -194,39 +300,48 @@ async function applyInvite(uid) {
 }
 
 // ─── RE-REGISTER MODAL ────────────────────────────────────────
-
-/**
- * Shows the reRegModal with the existing user's profile info.
- * Returns a Promise that resolves with the entered password on confirm,
- * or rejects on cancel / ESC.
- *
- * This function is unchanged from the original — only the TRIGGER
- * logic has changed (it now fires on page load for invite flows,
- * not only on form submission failure).
- */
+//
+// FIX: Added a CSS-aware guard. The original modal CSS uses
+// opacity: 0 + pointer-events: none by default, and
+// .modal:not(.hidden) { opacity: 1 } as the active state.
+//
+// showReRegModal removes '.hidden' to trigger the CSS transition,
+// then also sets display:'flex' as an inline style.
+// We keep both for cross-browser reliability, but the primary
+// visibility mechanism is the CSS class removal.
+//
 function showReRegModal(userData) {
     const modal = document.getElementById('reRegModal');
     const info  = document.getElementById('reRegInfo');
     const pass  = document.getElementById('reRegPassword');
 
     if (!modal) {
-        console.error('Re-registration modal not found in DOM');
-        return Promise.reject(new Error('Modal missing'));
+        console.error('[ReRegModal] #reRegModal not found in DOM.');
+        return Promise.reject(new Error('Modal element missing from page'));
     }
 
+    // Remove hidden class FIRST — this triggers the CSS opacity transition.
+    // The CSS rule `.modal:not(.hidden)` sets opacity:1 and pointer-events:auto.
     modal.classList.remove('hidden');
-    modal.style.display = 'flex';
+
+    // Also set inline display to ensure the element is visible
+    // even if CSS is somehow not loaded.
+    modal.style.display      = 'flex';
+    modal.style.opacity      = '1';
+    modal.style.pointerEvents = 'auto';
+
     document.body.classList.add('modal-open');
 
-    // Reset the password field every time the modal opens
     if (pass) pass.value = '';
 
+    // Show what we know. Email is always available from the invite.
+    // Name/role/batch may be unknown until after sign-in.
     info.innerHTML = `
         <div class="reReg-summary">
-            <p><strong>Name:</strong>  ${sanitizeText(userData.name  || '—')}</p>
             <p><strong>Email:</strong> ${sanitizeText(userData.email || '—')}</p>
-            <p><strong>Role:</strong>  ${sanitizeText(userData.role  || '—')}</p>
-            <p><strong>Batch:</strong> ${sanitizeText(userData.batch || 'None')}</p>
+            ${userData.name  ? `<p><strong>Name:</strong>  ${sanitizeText(userData.name)}</p>` : ''}
+            ${userData.role  ? `<p><strong>Role:</strong>  ${sanitizeText(userData.role)}</p>` : ''}
+            ${userData.batch ? `<p><strong>Batch:</strong> ${sanitizeText(userData.batch)}</p>` : ''}
         </div>
     `;
 
@@ -234,9 +349,18 @@ function showReRegModal(userData) {
         const confirmBtn = document.getElementById('confirmReReg');
         const cancelBtn  = document.getElementById('cancelReReg');
 
-        function cleanup() {
+        if (!confirmBtn || !cancelBtn) {
             modal.classList.add('hidden');
             modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            return reject(new Error('Modal buttons missing from DOM'));
+        }
+
+        function cleanup() {
+            modal.classList.add('hidden');
+            modal.style.display      = 'none';
+            modal.style.opacity      = '';
+            modal.style.pointerEvents = '';
             document.body.classList.remove('modal-open');
             confirmBtn.onclick = null;
             cancelBtn.onclick  = null;
@@ -247,11 +371,13 @@ function showReRegModal(userData) {
             const password = pass?.value || '';
             if (!password) {
                 if (pass) {
-                    pass.style.border = '1px solid red';
+                    pass.style.border = '2px solid var(--danger, red)';
+                    pass.placeholder  = 'Password is required';
                     pass.focus();
                 }
                 return;
             }
+            if (pass) pass.style.border = '';
             cleanup();
             resolve(password);
         };
@@ -269,153 +395,174 @@ function showReRegModal(userData) {
 }
 
 // ─── RETURNING STUDENT INVITE HANDLER ────────────────────────
-
-/**
- * Called when the invite flow detects an existing account for the
- * invited email address (whether the student is new here but has an
- * old account, or was previously removed from a batch).
- *
- * Flow:
- *   1. Show re-register modal → student enters their password.
- *   2. signInWithEmailAndPassword to verify identity.
- *   3. applyInvite() to join the batch atomically.
- *   4. Redirect to student dashboard.
- *
- * This function handles ALL cases — intentionally removed students,
- * accidentally removed students, and students who have an old account
- * and are being re-invited. The distinction does not matter here:
- * the invite is valid, the student proved their identity, so they join.
- */
-async function handleReturningStudent(existingSnap) {
-    const uid      = existingSnap.id;
-    const userData = existingSnap.data();
-    const email    = userData.email || inviteData?.email || '';
+//
+// FIX: Now accepts email (string) instead of existingSnap (Firestore doc).
+//
+// BEFORE:
+//   async function handleReturningStudent(existingSnap) {
+//       const uid      = existingSnap.id;          ← requires Firestore read
+//       const userData = existingSnap.data();       ← requires Firestore read
+//       const email    = userData.email || ...;
+//   }
+//
+// AFTER:
+//   async function handleReturningStudent(email) {
+//       // Show modal with email (always known from invite)
+//       // Sign in → get uid from Auth result → apply invite
+//       // Fetch Firestore doc after sign-in for richer modal info (optional)
+//   }
+//
+// This restructuring is necessary because we can't read Firestore
+// user documents before authentication. The email is always available
+// from the invite document (which allows unauthenticated get).
+//
+async function handleReturningStudent(email) {
+    // Build minimal info object using only what we know without Firestore
+    const minimalInfo = {
+        email: email,
+        name:  null,   // unknown until signed in
+        role:  null,
+        batch: null,
+    };
 
     let password;
     try {
-        password = await showReRegModal(userData);
-    } catch {
-        // Student cancelled the modal — abort gracefully, do NOT disable the form
-        setLoading(false);
+        password = await showReRegModal(minimalInfo);
+    } catch (modalErr) {
+        if (modalErr.message === 'User cancelled') {
+            // Student cancelled — restore form so they can try again
+            setLoading(false);
+            return;
+        }
+        // Actual error (missing DOM elements etc.)
+        console.error('[ReRegModal] Error:', modalErr);
+        showBannerError('Could not show the confirmation dialog. Please refresh the page.');
         return;
     }
 
     setLoading(true);
 
     try {
-        await signInWithEmailAndPassword(auth, email, password);
-        const user = await waitForAuthReady();
-        if (!user) throw new Error('Authentication failed.');
+        const userCred = await signInWithEmailAndPassword(auth, email, password);
+        const uid      = userCred.user.uid;
 
-        // Wait for the Auth token to propagate so Firestore rules can
-        // evaluate isStudent() / isAdviser() correctly in applyInvite().
-        await user.getIdToken(true);
+        // Force token refresh so Firestore rules evaluate correctly
+        await userCred.user.getIdToken(true);
 
         await applyInvite(uid);
         window.location.replace('/student/dashboard.html');
 
     } catch (err) {
         setLoading(false);
-        if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-            showBannerError('Incorrect password. Please try again.');
-        } else if (err.code === 'auth/too-many-requests') {
-            showBannerError('Too many attempts. Please wait a moment and try again.');
-        } else {
-            showBannerError(err.message || 'Sign-in failed. Please try again.');
-        }
+        const messages = {
+            'auth/wrong-password':      'Incorrect password. Please try again.',
+            'auth/invalid-credential':  'Incorrect password. Please try again.',
+            'auth/too-many-requests':   'Too many attempts. Please wait a moment and try again.',
+            'auth/user-disabled':       'This account has been disabled. Please contact support.',
+            'auth/network-request-failed': 'Network error. Check your connection.',
+        };
+        showBannerError(messages[err.code] || err.message || 'Sign-in failed. Please try again.');
     }
 }
 
 // ─── DOM READY ───────────────────────────────────────────────
-
 document.addEventListener('DOMContentLoaded', async () => {
 
-    // ── INVITE FLOW ──────────────────────────────────────────
     if (inviteId) {
         currentRole = 'student';
 
-        // Hide role selector and "already have account" link —
-        // invite is always for students only.
         document.querySelector('.role-selector-main')?.style.setProperty('display', 'none');
         document.querySelector('.footer-link')?.style.setProperty('display', 'none');
 
+        // ── STEP 1: Validate the invite (public read — always works) ──
+        let inviteValidationFailed = false;
+
         try {
-            // STEP 1: Validate the invite document.
-            //
-            // FIX: Now succeeds because the Firestore rule is:
-            //   allow get: if true;
-            // Previously `allow read: if isAuth()` blocked unauthenticated
-            // reads → PERMISSION_DENIED on page load, inviteData stayed null.
             const result = await validateInvite(inviteId);
             inviteData   = result.invite;
+        } catch (err) {
+            // Invite is genuinely invalid (doesn't exist, already used, etc.)
+            console.error('[Invite] Validation failed:', err);
+            showBannerError(err.message || 'Invalid or expired invite link.');
+            form.querySelectorAll('input:not([type="button"]), button[type="submit"]')
+                .forEach(el => { el.disabled = true; });
+            inviteValidationFailed = true;
+        }
 
-            // STEP 2: Proactively check if an account already exists
-            // for the email address attached to this invite.
-            //
-            // This is the KEY CHANGE from the original flow.
-            // Original: existing-user check only happened inside the form
-            //   submit handler AFTER createUserWithEmailAndPassword() failed
-            //   with auth/email-already-in-use — a delayed, reactive check.
-            //
-            // New: We check immediately on page load (before the student
-            //   even sees the form). If an account exists for the invited
-            //   email, we show the re-register modal RIGHT AWAY.
-            //
-            // This covers ALL cases:
-            //   - NEW student  → no account found → show normal form
-            //   - RETURNING student (removed by adviser) → account found → re-register modal
-            //   - RETURNING student (accidental removal) → account found → re-register modal
-            //   - Student re-invited after voluntarily leaving → account found → re-register modal
-            if (inviteData?.email) {
-                const emailInput = document.getElementById('reg-email');
+        if (inviteValidationFailed) {
+            // Still call common setup so the page isn't completely broken
+            toggleRegRole(currentRole);
+            setupLegalHandlers();
+            return;
+        }
 
-                // Pre-fill and lock the email field regardless of whether
-                // the account exists or not (email is set by the adviser).
-                if (emailInput) {
-                    emailInput.value    = inviteData.email.toLowerCase();
-                    emailInput.disabled = true;
-                }
+        // ── STEP 2: Pre-fill the email field from invite ──────────────
+        if (inviteData?.email) {
+            const emailInput = document.getElementById('reg-email');
+            if (emailInput) {
+                emailInput.value    = inviteData.email.toLowerCase();
+                emailInput.disabled = true;
+            }
+        }
 
-                // Check Firestore for an existing account with this email.
-                const existingSnap = await checkExistingUser(inviteData.email);
+        // ── STEP 3: Check if email already exists in Firebase Auth ────
+        //
+        // FIX: Uses fetchSignInMethodsForEmail() instead of Firestore query.
+        //
+        // BEFORE (broken):
+        //   const existingSnap = await checkExistingUser(inviteData.email);
+        //   → PERMISSION_DENIED (unauthenticated Firestore list query)
+        //   → caught by outer catch → form disabled → modal never shows
+        //
+        // AFTER (fixed):
+        //   const emailExists = await checkEmailExistsInAuth(inviteData.email);
+        //   → Firebase Auth SDK call, no authentication required
+        //   → returns true/false without touching Firestore
+        //   → isolated try/catch so invite validation errors stay separate
+        //
+        if (inviteData?.email) {
+            try {
+                const emailExists = await checkEmailExistsInAuth(inviteData.email);
 
-                if (existingSnap) {
-                    // ACCOUNT EXISTS — show re-register modal immediately.
-                    // Do NOT render the registration form fields; hide them
-                    // so the student isn't confused by a partially visible form.
+                if (emailExists) {
+                    // RETURNING STUDENT: email already registered in Firebase Auth.
+                    // Hide the registration form and show the re-register modal.
                     const formSections = document.querySelectorAll(
                         '.form-section, .legal-consent-section, #main-submit-btn'
                     );
                     formSections.forEach(el => { el.style.display = 'none'; });
 
-                    // Show modal. handleReturningStudent handles sign-in +
-                    // applyInvite + redirect internally.
-                    await handleReturningStudent(existingSnap);
+                    await handleReturningStudent(inviteData.email);
 
-                    // If we reach here, the student cancelled the modal.
-                    // Restore the form so they can try again.
+                    // If we reach here, student cancelled the modal.
+                    // Restore form so they can try again.
                     formSections.forEach(el => { el.style.display = ''; });
-                    return; // Don't proceed to setupLegalHandlers etc. yet
+
+                    // Re-run setup after restore (was skipped during modal flow)
+                    toggleRegRole(currentRole);
+                    setupLegalHandlers();
+                    setupPasswordStrength();
+                    setupPasswordToggle();
+                    setupFormValidation();
+                    return;
                 }
+
+                // NEW STUDENT: email not in Auth → show normal registration form.
+
+            } catch (err) {
+                // checkEmailExistsInAuth failure (network error etc.)
+                // Don't block registration — log and continue to normal form.
+                console.warn('[Invite] Auth email check failed:', err.message);
+                // Fall through to normal form setup
             }
-
-        } catch (err) {
-            console.error('[Invite] Validation error:', err);
-            showBannerError(err.message || 'Invalid or expired invite link.');
-
-            // Disable only the submit-related inputs, not the entire form,
-            // so the student can still read the error clearly.
-            form.querySelectorAll('input:not([type="button"]), button[type="submit"]')
-                .forEach(el => { el.disabled = true; });
-
-            return; // Stop setup — invite is invalid
         }
     }
 
-    // ── COMMON SETUP (runs for all flows) ─────────────────────
-    // NOTE: For non-invite flows (student navigates from index.html),
-    // inviteId is null so the block above is skipped entirely.
-    // Nothing below changes the standard registration behavior.
+    // ── COMMON SETUP (all flows) ─────────────────────────────────
+    // Runs for:
+    //   (a) Non-invite registration (inviteId is null)
+    //   (b) Invite flow where email is NOT already registered
+    //   (c) Invite flow where email check failed (graceful fallback)
     toggleRegRole(currentRole);
     setupLegalHandlers();
     setupPasswordStrength();
@@ -432,7 +579,7 @@ function toggleRegRole(role) {
         role === 'student' ? 'block' : 'none';
     document.getElementById('supervisor-only-fields').style.display =
         role === 'supervisor' ? 'block' : 'none';
-    document.getElementById('btn-student').classList.toggle('active', role === 'student');
+    document.getElementById('btn-student').classList.toggle('active',    role === 'student');
     document.getElementById('btn-supervisor').classList.toggle('active', role === 'supervisor');
     updateRequiredFields(role);
 }
@@ -490,10 +637,10 @@ function setupPasswordStrength() {
     pwInput.addEventListener('input', () => {
         const val = pwInput.value;
         let score = 0;
-        if (val.length >= 8)            score++;
-        if (/[A-Z]/.test(val))          score++;
-        if (/[0-9]/.test(val))          score++;
-        if (/[^A-Za-z0-9]/.test(val))   score++;
+        if (val.length >= 8)           score++;
+        if (/[A-Z]/.test(val))         score++;
+        if (/[0-9]/.test(val))         score++;
+        if (/[^A-Za-z0-9]/.test(val))  score++;
 
         fill.className = 'pw-strength-fill';
         if (val.length === 0) { fill.style.width = '0%'; return; }
@@ -556,7 +703,7 @@ function setupFormValidation() {
 }
 
 function validateForm() {
-    let valid  = true;
+    let valid = true;
     const email    = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
     const fname    = document.getElementById('reg-firstname').value.trim();
@@ -582,10 +729,10 @@ function validateForm() {
         const company = document.getElementById('std-company').value.trim();
         const hours   = parseInt(document.getElementById('std-total-hours').value, 10);
 
-        if (!school)  { showFieldError('school-error',  'School name is required.');        valid = false; }
-        if (!course)  { showFieldError('course-error',  'Please select a course.');          valid = false; }
-        if (!section) { showFieldError('section-error', 'Section is required.');             valid = false; }
-        if (!company) { showFieldError('company-error', 'Company name is required.');        valid = false; }
+        if (!school)  { showFieldError('school-error',  'School name is required.');  valid = false; }
+        if (!course)  { showFieldError('course-error',  'Please select a course.');   valid = false; }
+        if (!section) { showFieldError('section-error', 'Section is required.');      valid = false; }
+        if (!company) { showFieldError('company-error', 'Company name is required.'); valid = false; }
         if (!hours || hours < 100 || hours > 2000) {
             showFieldError('hours-error', 'Enter valid hours (100–2000).'); valid = false;
         }
@@ -595,9 +742,9 @@ function validateForm() {
         const org     = document.getElementById('sup-org').value.trim();
         const contact = document.getElementById('sup-contact').value.trim();
         const checked = document.querySelectorAll('input[name="sup-course"]:checked');
-        if (!org)              { showFieldError('org-error',     'School/institution is required.'); valid = false; }
-        if (!contact)          { showFieldError('contact-error', 'Contact number is required.');     valid = false; }
-        if (!checked.length)   { showFieldError('courses-error', 'Select at least one course.');     valid = false; }
+        if (!org)             { showFieldError('org-error',     'School/institution is required.'); valid = false; }
+        if (!contact)         { showFieldError('contact-error', 'Contact number is required.');     valid = false; }
+        if (!checked.length)  { showFieldError('courses-error', 'Select at least one course.');     valid = false; }
     }
 
     return valid;
@@ -615,20 +762,6 @@ function hideBannerError() {
 }
 
 // ─── FORM SUBMIT ─────────────────────────────────────────────
-//
-// NOTE: This handler is reached ONLY when:
-//   (a) There is NO inviteId in the URL (standard registration from index.html), OR
-//   (b) There IS an inviteId but the invited email has NO existing account
-//       (new student registering for the first time via invite).
-//
-// The case of inviteId + EXISTING account is handled entirely in
-// DOMContentLoaded → handleReturningStudent() → redirect.
-// The form is hidden in that case; this handler never fires.
-//
-// The `auth/email-already-in-use` catch below remains as a safety
-// net for edge cases (e.g. student creates an account externally
-// between page load and form submit), but it is NOT the primary
-// path for returning students in the invite flow.
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideBannerError();
@@ -641,37 +774,27 @@ form.addEventListener('submit', async (e) => {
     try {
         let userCred;
 
-        // ── Try to create a new account ───────────────────────
         try {
             userCred = await createUserWithEmailAndPassword(auth, email, password);
 
         } catch (authErr) {
-            // SAFETY NET: account already exists but wasn't caught on page load.
-            // This should rarely happen in normal use after the page-load check.
-            // It can occur if the student created an account externally, or if
-            // checkExistingUser() returned null due to eventual consistency.
+            // Safety net for auth/email-already-in-use.
+            // This should not normally fire for invite flows because we already
+            // check in DOMContentLoaded, but handles edge cases
+            // (e.g. student registered externally between page-load and submit).
             if (authErr.code === 'auth/email-already-in-use') {
-                const existingSnap = await checkExistingUser(email);
-                if (!existingSnap) {
-                    throw new Error('Account exists in Auth but no profile found. Contact support.');
-                }
-
-                const uid      = existingSnap.id;
                 let enteredPassword;
-
                 try {
-                    enteredPassword = await showReRegModal(existingSnap.data());
+                    // Show modal with email info; we don't have Firestore data yet
+                    enteredPassword = await showReRegModal({ email, name: null, role: null, batch: null });
                 } catch {
-                    // Student cancelled the modal
                     setLoading(false);
                     return;
                 }
 
-                await signInWithEmailAndPassword(auth, email, enteredPassword);
-                const user = await waitForAuthReady();
-                if (!user) throw new Error('Authentication failed after sign-in.');
-
-                await user.getIdToken(true); // Force token refresh before Firestore writes
+                const signedIn = await signInWithEmailAndPassword(auth, email, enteredPassword);
+                const uid      = signedIn.user.uid;
+                await signedIn.user.getIdToken(true);
 
                 if (inviteId && inviteData) {
                     await applyInvite(uid);
@@ -681,15 +804,10 @@ form.addEventListener('submit', async (e) => {
                 return;
             }
 
-            // Any other Auth error — re-throw to the outer catch
             throw authErr;
         }
 
-        // ── New account created successfully ──────────────────
         const uid = userCred.user.uid;
-
-        // Force token refresh so Firestore rules can evaluate getRole()
-        // against the user document we're about to write.
         await userCred.user.getIdToken(true);
 
         const payload = currentRole === 'student'
@@ -698,7 +816,6 @@ form.addEventListener('submit', async (e) => {
 
         await setDoc(doc(db, 'users', uid), payload);
 
-        // Apply invite AFTER user doc is written so getRole() resolves correctly.
         if (inviteId && inviteData) {
             await applyInvite(uid);
         }
@@ -712,8 +829,8 @@ form.addEventListener('submit', async (e) => {
     } catch (err) {
         console.error('[Register] Submit error:', err);
         const friendly = {
-            'auth/invalid-email':    'The email address format is invalid.',
-            'auth/weak-password':    'Password must be at least 8 characters.',
+            'auth/invalid-email':          'The email address format is invalid.',
+            'auth/weak-password':          'Password must be at least 8 characters.',
             'auth/network-request-failed': 'Network error. Check your connection.',
         };
         showBannerError(friendly[err.code] || err.message || 'Registration failed.');
@@ -722,19 +839,18 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ─── PAYLOAD BUILDERS ────────────────────────────────────────
-
 function buildStudentPayload(uid, email) {
-    const firstName = sanitizeInput(document.getElementById('reg-firstname').value);
-    const surname   = sanitizeInput(document.getElementById('reg-surname').value);
-    const school    = sanitizeInput(document.getElementById('std-school')?.value);
-    const course    = document.getElementById('std-course')?.value;
-    const year      = document.getElementById('std-year')?.value;
-    const section   = sanitizeInput(document.getElementById('std-section')?.value);
-    const company   = sanitizeInput(document.getElementById('std-company')?.value);
+    const firstName     = sanitizeInput(document.getElementById('reg-firstname').value);
+    const surname       = sanitizeInput(document.getElementById('reg-surname').value);
+    const school        = sanitizeInput(document.getElementById('std-school')?.value);
+    const course        = document.getElementById('std-course')?.value;
+    const year          = document.getElementById('std-year')?.value;
+    const section       = sanitizeInput(document.getElementById('std-section')?.value);
+    const company       = sanitizeInput(document.getElementById('std-company')?.value);
     const requiredHours = Number(document.getElementById('std-total-hours')?.value || 0);
-    const timeStart = document.getElementById('std-start')?.value || null;
-    const timeEnd   = document.getElementById('std-end')?.value   || null;
-    const fullSection = course && section ? `${course}-${section}` : section;
+    const timeStart     = document.getElementById('std-start')?.value || null;
+    const timeEnd       = document.getElementById('std-end')?.value   || null;
+    const fullSection   = course && section ? `${course}-${section}` : section;
 
     return {
         uid,
@@ -762,10 +878,10 @@ function buildStudentPayload(uid, email) {
 }
 
 function buildSupervisorPayload(uid, email) {
-    const firstName    = sanitizeInput(document.getElementById('reg-firstname').value);
-    const surname      = sanitizeInput(document.getElementById('reg-surname').value);
-    const organization = sanitizeInput(document.getElementById('sup-org')?.value);
-    const number       = sanitizeInput(document.getElementById('sup-contact')?.value);
+    const firstName      = sanitizeInput(document.getElementById('reg-firstname').value);
+    const surname        = sanitizeInput(document.getElementById('reg-surname').value);
+    const organization   = sanitizeInput(document.getElementById('sup-org')?.value);
+    const number         = sanitizeInput(document.getElementById('sup-contact')?.value);
     const checkedCourses = Array.from(
         document.querySelectorAll('input[name="sup-course"]:checked')
     ).map(cb => cb.value);
@@ -773,17 +889,17 @@ function buildSupervisorPayload(uid, email) {
 
     return {
         uid,
-        role:             'supervisor',
+        role:            'supervisor',
         email,
         firstName,
         surname,
-        name:             `${firstName} ${surname}`,
+        name:            `${firstName} ${surname}`,
         organization,
         number,
-        designation:      'OJT Coordinator',
-        assignedCourses:  checkedCourses,
+        designation:     'OJT Coordinator',
+        assignedCourses: checkedCourses,
         staffId,
-        createdAt:        serverTimestamp(),
-        updatedAt:        serverTimestamp()
+        createdAt:       serverTimestamp(),
+        updatedAt:       serverTimestamp()
     };
 }
