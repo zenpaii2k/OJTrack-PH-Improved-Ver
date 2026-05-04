@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════════════
 //  OJTrack PH — Corrected Firestore Security Rules
-//  All fixes derived from exact JS code audit of register.js +
-//  batchmanagement.js.  Every changed rule is annotated.
+//  Audited against register.js + batchmanagement.js
+//  Every changed rule has an inline explanation.
 //  Deploy: firebase deploy --only firestore:rules
 // ══════════════════════════════════════════════════════════════════════
 
@@ -21,29 +21,29 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == userId;
     }
 
-    // ── BUG #3 FIX ───────────────────────────────────────────────
-    // ORIGINAL (broken):
+    // ── FIX #1 (getRole) ─────────────────────────────────────────
+    // ORIGINAL:
     //   function getRole() {
     //     return isAuth()
     //       ? get(/users/$(request.auth.uid)).data.role
     //       : null;
     //   }
     //
-    // WHY IT FAILS:
-    //   get() is called on the user document without first checking
-    //   exists(). Between createUserWithEmailAndPassword() completing
-    //   and setDoc(users/uid) committing, the user document does not
-    //   yet exist. Calling get() on a missing document causes the rules
-    //   engine to throw an uncaught error → PERMISSION_DENIED, even
-    //   though the user IS authenticated.
+    // BUG: get() is called unconditionally on the user document.
+    // During invite registration the sequence is:
+    //   Step A → createUserWithEmailAndPassword()  → Auth exists
+    //   Step B → setDoc(users/uid, payload)        → Firestore doc created
     //
-    //   This window is small but real: any Firestore write inside
-    //   applyInvite() that triggers isStudent() or isAdviser() can
-    //   fail if the user document hasn't replicated yet.
+    // Between A and B there is a real window (≥ one network round-trip)
+    // where the Auth token is valid but the Firestore document does NOT
+    // yet exist. If isStudent() or isAdviser() is evaluated during this
+    // window — as happens inside the applyInvite() transaction — the
+    // rules engine calls get() on a missing document, which throws an
+    // uncaught exception → PERMISSION_DENIED.
     //
-    // FIX: Guard the get() call with exists() first.
-    //   If the document doesn't exist, return null safely.
-    //   isStudent() / isAdviser() then return false without throwing.
+    // FIX: Guard every get() with exists() first.
+    // If the document is absent, getRole() returns null safely.
+    // isStudent() / isAdviser() return false without throwing.
     // ─────────────────────────────────────────────────────────────
     function getRole() {
       return (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
@@ -67,34 +67,34 @@ service cloud.firestore {
 
       allow read: if isAuth();
 
-      // Student creates their own document during registration.
-      // register.js setDoc(users/uid, payload) — isSelf(uid) is valid
-      // because createUserWithEmailAndPassword() has already completed.
+      // register.js setDoc(users/uid, payload) — isSelf valid here
+      // because createUserWithEmailAndPassword() has already resolved.
       allow create: if isSelf(userId);
 
-      // ── Student updates own profile ──────────────────────────
-      // register.js applyInvite() → tx.update(userRef, { batch, supervisorId, updatedAt })
-      // These fields don't include role, so the role-equality check passes.
+      // Student updates their own profile (account.js, applyInvite step 6).
+      // applyInvite tx.update(userRef, { batch, supervisorId, updatedAt })
+      // — none of these are "role", so the role equality check passes.
       allow update: if isSelf(userId)
         && request.resource.data.role == resource.data.role;
 
-      // ── BUG #4 FIX ──────────────────────────────────────────
-      // ORIGINAL: No rule for adviser updating student documents.
+      // ── FIX #2 (adviser clears student batch fields) ──────────
+      // ORIGINAL: No adviser UPDATE path existed.
       //
-      // WHY IT FAILS:
-      //   batchmanagement.js removeStudent() calls:
-      //     updateDoc(doc(db, "users", studentUid), { batch: "", supervisorId: "" })
-      //   The request.auth.uid is the ADVISER's UID.
-      //   isSelf(studentUid) checks: adviserUid == studentUid → FALSE
+      // BUG: batchmanagement.js removeStudent() calls:
+      //   updateDoc(doc(db,"users",studentUid), { batch:"", supervisorId:"" })
+      //   The adviser's UID ≠ studentUid → isSelf(studentUid) = FALSE
       //   → PERMISSION_DENIED on every student removal.
-      //   The student's batch/supervisorId fields are never cleared,
-      //   causing stale data on the student dashboard after removal.
+      //   The student's user doc retains stale batch/supervisorId values,
+      //   causing their dashboard to show the old batch after removal.
       //
-      // FIX: Add an adviser update path that is strictly limited to
-      //   the three batch-assignment fields only (batch, supervisorId,
-      //   updatedAt). The adviser cannot touch role, email, uid,
-      //   createdAt, or any other profile field.
-      // ──────────────────────────────────────────────────────────
+      // FIX: An adviser may update ONLY the three batch-assignment fields
+      //   on any student document. Role, email, uid, createdAt are blocked.
+      //
+      // NOTE: batchmanagement.js originally wrote batch:"" (empty string).
+      //   Empty strings break JS truthiness checks (userData.batch is falsy
+      //   but typeof check passes). The fixed JS uses null; the rule allows
+      //   both for backwards compatibility.
+      // ─────────────────────────────────────────────────────────
       allow update: if isAdviser()
         && request.resource.data.diff(resource.data)
             .affectedKeys()
@@ -109,35 +109,39 @@ service cloud.firestore {
     // ══════════════════════════════════════════════════════════════
     match /invitations/{inviteId} {
 
-      // ── BUG #1 FIX ──────────────────────────────────────────
+      // ── FIX #3 (unauthenticated invite validation) ────────────
       // ORIGINAL:
       //   allow read: if isAuth();
       //
-      // WHY IT FAILS:
-      //   register.js DOMContentLoaded calls validateInvite(inviteId)
+      // BUG: register.js DOMContentLoaded calls validateInvite(inviteId)
       //   which calls getDoc(invitations/inviteId).
       //
-      //   At this point the user is UNAUTHENTICATED — they have no
-      //   Firebase account yet. isAuth() = request.auth != null = FALSE.
+      //   The student has NO account yet. isAuth() = FALSE.
       //   → PERMISSION_DENIED immediately on page load.
+      //   validateInvite() throws; the catch block disables the entire
+      //   form: form.querySelectorAll("input,button").forEach(el => el.disabled=true)
+      //   The student sees "Missing or insufficient permissions" and cannot
+      //   proceed. inviteData stays null → applyInvite() returns early
+      //   for every subsequent user too.
       //
-      //   Because validateInvite() throws, the catch block runs:
-      //     showBannerError(err.message)
-      //     form.querySelectorAll("input, button").forEach(el => el.disabled = true)
-      //   The student sees "Missing or insufficient permissions" and
-      //   cannot proceed. inviteData stays null, so applyInvite() is
-      //   also skipped for any user who somehow gets through.
+      // NEW FLOW (post-fix): DOMContentLoaded also proactively checks
+      //   if the invited email already has an account and shows the
+      //   re-register modal BEFORE the student fills in the form.
+      //   This getDoc must succeed without authentication.
       //
-      // FIX: Separate read into get (single document) and list.
-      //   Invite links only ever validate a single document by ID.
-      //   We allow that one-doc read publicly (no auth required) so
-      //   new users can verify the invite before registering.
+      // FIX: Split `allow read` into get (single doc) and list.
+      //   Invite validation only ever fetches one document by ID.
+      //   We allow that read publicly so new/returning users can
+      //   validate the invite before or during registration.
       //   Listing all invites still requires authentication.
-      // ──────────────────────────────────────────────────────────
-      allow get:  if true;           // new users can validate before signing up
-      allow list: if isAuth();       // listing requires auth (advisers only in practice)
+      // ─────────────────────────────────────────────────────────
+      allow get:  if true;         // unauthenticated invite validation on page load
+      allow list: if isAuth();     // listing invites requires auth (advisers)
 
-      // batchmanagement.js generateInviteLink() → addDoc(invitations, {...})
+      // batchmanagement.js generateInviteLink() → addDoc(invitations, {
+      //   email, batchId, supervisorId: auth.currentUser.uid,
+      //   status: "pending", createdAt, usedBy: null, usedAt: null
+      // })
       // Rule checks supervisorId == request.auth.uid AND status == "pending".
       // Both match the payload exactly.
       allow create: if isAuth()
@@ -145,11 +149,13 @@ service cloud.firestore {
         && request.resource.data.status == "pending";
 
       // Two update paths:
-      // (a) Adviser edits/revokes their own invite.
-      // (b) Student marks invite as used — checked by register.js applyInvite()
-      //     tx.update(inviteRef, { status:"used", usedBy:uid, usedAt:serverTimestamp() })
-      //     The condition on line 3 in the original correctly allowed this
-      //     path, so it is preserved unchanged.
+      // (a) Adviser edits or revokes their own invite.
+      // (b) Student marks invite as used via applyInvite() tx.update(inviteRef, {
+      //       status: "used", usedBy: uid, usedAt: serverTimestamp()
+      //     })
+      //     The student is authenticated at this point (just signed in or
+      //     just created their account). The condition correctly checks the
+      //     previous status was "pending" and the new status is "used".
       allow update: if isAuth() && (
         resource.data.supervisorId == request.auth.uid
         ||
@@ -169,41 +175,50 @@ service cloud.firestore {
 
       allow read: if isAuth();
 
-      // batchmanagement.js createNewBatch() → addDoc(batches, { supervisorId:uid, ... })
+      // batchmanagement.js createNewBatch() → addDoc(batches, {
+      //   supervisorId: auth.currentUser.uid, name, year,
+      //   studentUids: [], createdAt: serverTimestamp()
+      // })
       allow create: if isAdviser();
 
-      // ── BUG #2 FIX ──────────────────────────────────────────
+      // ── FIX #4 (student cannot join batch via invite) ─────────
       // ORIGINAL:
       //   allow update: if isAuth() && (
       //     resource.data.supervisorId == request.auth.uid || isAdviser()
       //   );
       //
-      // WHY IT FAILS:
-      //   register.js applyInvite() runs a transaction that includes:
-      //     tx.update(batchRef, { studentUids: arrayUnion(uid) })
-      //   The auth user at this point is the STUDENT, just registered.
-      //   - resource.data.supervisorId is the ADVISER's UID ≠ student UID → FALSE
-      //   - isAdviser(): getRole() returns "student" ≠ "supervisor"        → FALSE
-      //   → PERMISSION_DENIED. The ENTIRE transaction rolls back.
-      //   The invite is never marked as used. The batch is never joined.
+      // BUG: applyInvite() transaction calls:
+      //   tx.update(batchRef, { studentUids: arrayUnion(uid) })
+      //   The auth user is the STUDENT (just registered or signed in).
+      //   - resource.data.supervisorId is the adviser UID ≠ student UID → FALSE
+      //   - isAdviser(): getRole() = "student" ≠ "supervisor"            → FALSE
+      //   Both branches fail → PERMISSION_DENIED.
+      //   The ENTIRE transaction rolls back. Invite is never marked used.
+      //   Batch is never joined. Student user doc fields stay stale.
       //
-      // FIX: Add a third update path specifically for a student
-      //   joining a batch via invite. The path enforces:
-      //   1. The requester is a student (isStudent()).
-      //   2. They are ONLY changing the studentUids field (nothing else).
-      //   3. They are ADDING a UID — not removing or replacing.
-      //      size() >= size() (not strictly +1) handles the re-join case
-      //      where arrayUnion on an already-present UID leaves size unchanged.
-      //   4. The existing UIDs are all preserved (no removals).
+      // FIX: Third update path — student joins batch via invite.
+      //   Constraints enforced by the rule:
+      //   1. Requester has student role.
+      //   2. Only the studentUids field changes — nothing else.
+      //   3. Existing UIDs are all still present (no removals).
+      //   4. Array grows by 0 or 1 entries (>= handles arrayUnion
+      //      idempotency when the student is already present — see
+      //      Bug #5 note below).
       //
-      // NOTE on arrayUnion idempotency (Bug #5 interaction):
-      //   register.js also had a conditional tx.update(arrayRemove) before
-      //   the arrayUnion. Two tx.update() calls on the same doc in a
-      //   transaction cause the second to override the first; the arrayRemove
-      //   is effectively a no-op. The fix in register.js removes it entirely.
-      //   Since arrayUnion is idempotent, the rules size() >= check handles
-      //   both the first-time join (+1) and re-join (+0) cases.
-      // ──────────────────────────────────────────────────────────
+      // BUG #5 (also fixed here):
+      //   applyInvite() had a conditional double-update on batchRef:
+      //     if (batch.studentUids?.includes(uid)) {
+      //       tx.update(batchRef, { studentUids: arrayRemove(uid) }); // write 1
+      //     }
+      //     tx.update(batchRef, { studentUids: arrayUnion(uid) });    // write 2
+      //
+      //   Firestore SDK collapses multiple tx.update() calls on the
+      //   same document ref — only the LAST write applies. The arrayRemove
+      //   is silently discarded. The fixed register.js removes the
+      //   conditional arrayRemove entirely; arrayUnion is idempotent.
+      //   The >= size check here handles both first-join (+1) and
+      //   re-join (+0, UID already in array) cases.
+      // ─────────────────────────────────────────────────────────
       allow update: if isAuth() && (
         resource.data.supervisorId == request.auth.uid
         ||
@@ -232,14 +247,11 @@ service cloud.firestore {
 
       allow read: if isAuth();
 
-      // ojtattendance.js addDoc writes: uid, timestamp, status:'Pending', ...
+      // ojtattendance.js addDoc writes: uid, timestamp, status:'Pending'
       allow create: if isStudent()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.timestamp == request.time;
 
-      // Any authenticated user can update (adviser approves/rejects).
-      // Tighten this if needed:
-      //   allow update: if isAdviser();
       allow update: if isAuth();
 
       allow delete: if isAuth()
@@ -273,7 +285,6 @@ service cloud.firestore {
       allow read: if isAuth();
 
       // generatepdf.js setDoc writes submittedAt: serverTimestamp()
-      // (NOT createdAt) — the rule correctly uses submittedAt here.
       allow create: if isStudent()
         && request.resource.data.studentUid == request.auth.uid
         && request.resource.data.submittedAt == request.time;
@@ -320,8 +331,6 @@ service cloud.firestore {
             .hasOnly(['isRead'])
         && request.resource.data.isRead == true;
 
-      // Tighten this if unintended deletes are a concern:
-      //   allow delete: if isAdviser();
       allow delete: if true;
     }
 
