@@ -1,16 +1,3 @@
-// ══════════════════════════════════════════════════════════════════════
-//  OJTrack PH — Firestore Security Rules
-//  Deploy: firebase deploy --only firestore:rules
-//
-//  Change from previous version:
-//    /users/{userId}  →  allow read split into get + list
-//    Reason: checkExistingUser() (the root cause of the modal bug) used
-//    a LIST query on unauthenticated users. That bug is now fixed in
-//    register.js (using fetchSignInMethodsForEmail instead), but we
-//    also tighten the rule here so no future code can accidentally
-//    perform an unauthenticated list on /users.
-// ══════════════════════════════════════════════════════════════════════
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -27,9 +14,6 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == userId;
     }
 
-    // Guard get() with exists() so getRole() never throws when the
-    // user document does not yet exist (window between Auth account
-    // creation and Firestore setDoc in register.js).
     function getRole() {
       return (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
@@ -49,44 +33,6 @@ service cloud.firestore {
     // USERS  /users/{userId}
     // ══════════════════════════════════════════════════════════════
     match /users/{userId} {
-
-      // ── CHANGED: split allow read into get + list ─────────────
-      //
-      // BEFORE:
-      //   allow read: if isAuth();
-      //
-      // `allow read` covers both get (single doc by ID) and list
-      // (collection query with where()). Both required auth, which
-      // was correct for advisers and authenticated students.
-      //
-      // However, because the old register.js used getDocs() with a
-      // where() clause (a LIST operation) while unauthenticated, this
-      // rule caused PERMISSION_DENIED → the re-register modal never
-      // appeared. That JS bug is fixed by using fetchSignInMethodsForEmail
-      // instead, but we also tighten the rule here as defence-in-depth:
-      //
-      // AFTER:
-      //   allow get:  if isAuth();   single doc reads require auth
-      //   allow list: if isAuth();   collection queries require auth
-      //
-      // Functionally equivalent for all authenticated operations.
-      // Makes it explicit that listing user documents is auth-gated,
-      // preventing any future unauthenticated list attempts from
-      // silently succeeding if the rule were accidentally broadened.
-      allow get:  if isAuth();
-      allow list: if isAuth();
-
-      // Self-registration: register.js setDoc(users/uid, payload).
-      allow create: if isSelf(userId);
-
-      // Student updates own profile.
-      // Role field must not change (prevents privilege escalation).
-      allow update: if isSelf(userId)
-        && request.resource.data.role == resource.data.role;
-
-      // Adviser clears batch fields when removing a student.
-      // batchmanagement.js removeStudent() writes:
-      //   { batch: null, supervisorId: null, updatedAt: serverTimestamp() }
       allow update: if isAdviser()
         && request.resource.data.diff(resource.data)
             .affectedKeys()
@@ -100,9 +46,6 @@ service cloud.firestore {
     // INVITATIONS  /invitations/{inviteId}
     // ══════════════════════════════════════════════════════════════
     match /invitations/{inviteId} {
-
-      // Single-document reads are public — required by register.js
-      // validateInvite() BEFORE the student has an account.
       allow get:  if true;
       allow list: if isAuth();
 
@@ -133,15 +76,7 @@ service cloud.firestore {
     match /batches/{batchId} {
 
       allow read: if isAuth();
-
-      // batchmanagement.js createNewBatch() writes:
-      //   { supervisorId: uid, name, year, studentUids: [], createdAt }
       allow create: if isAdviser();
-
-      // Three update paths:
-      // (a) Batch owner (adviser) — full control.
-      // (b) Any adviser — covers cleanInvalidStudents(), updateBatchStats().
-      // (c) Student joining via invite — may only append their own uid.
       allow update: if isAuth() && (
         resource.data.supervisorId == request.auth.uid
         ||

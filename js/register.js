@@ -1,99 +1,3 @@
-/**
- * OJTrack PH — register.js  (Fixed)
- * ═══════════════════════════════════════════════════════════════
- *
- * ROOT CAUSE ANALYSIS
- * ═══════════════════════════════════════════════════════════════
- *
- * WHY THE RE-REGISTER MODAL NEVER APPEARS
- * ────────────────────────────────────────
- *
- * The bug is in DOMContentLoaded → checkExistingUser(email).
- *
- *   async function checkExistingUser(email) {
- *       const q = query(
- *           collection(db, 'users'),
- *           where('email', '==', email.toLowerCase())   ← LIST query
- *       );
- *       const snap = await getDocs(q);   ← throws PERMISSION_DENIED
- *       ...
- *   }
- *
- * This is a Firestore COLLECTION LIST query (getDocs + where()).
- * The Firestore rule for /users is:
- *
- *   match /users/{userId} {
- *     allow read: if isAuth();   ← covers both get AND list
- *   }
- *
- * At the moment this runs, the student is UNAUTHENTICATED — they
- * have not signed in or created an account. isAuth() = false.
- * Firestore throws PERMISSION_DENIED.
- *
- * The exception propagates out of checkExistingUser() and is caught
- * by the SAME try/catch that wraps validateInvite():
- *
- *   try {
- *     const result = await validateInvite(inviteId);   ← succeeds
- *     inviteData   = result.invite;
- *     ...
- *     const existingSnap = await checkExistingUser(...); ← throws
- *
- *     if (existingSnap) {
- *       await handleReturningStudent(existingSnap);     ← NEVER reached
- *     }
- *   } catch (err) {
- *     showBannerError('Invalid or expired invite link.'); ← wrong message
- *     form.inputs.forEach(el => el.disabled = true);     ← form disabled
- *     return;                                            ← exits setup
- *   }
- *
- * Consequences of this single error:
- *   1. handleReturningStudent() is never called
- *   2. showReRegModal() is never called
- *   3. The modal never appears
- *   4. Form inputs are disabled with a misleading error message
- *   5. setupLegalHandlers / setupPasswordStrength / etc. never run
- *      (the return exits before them — even new students can't register)
- *
- * SECONDARY CSS ISSUE (would have mattered if modal code ran)
- * ────────────────────────────────────────────────────────────
- *
- * The modal CSS uses:
- *   .modal        { opacity: 0; pointer-events: none; display: flex; }
- *   .hidden       { display: none !important; }
- *   .modal:not(.hidden) { opacity: 1; pointer-events: auto; }
- *
- * showReRegModal() does:
- *   modal.classList.remove('hidden');   ← triggers opacity transition ✓
- *   modal.style.display = 'flex';      ← redundant but harmless
- *
- * The modal visibility relies on the CSS :not(.hidden) selector.
- * The inline display:flex is a no-op since the class already sets it.
- * This is fine, but the original showReRegModal also has this guard:
- *
- *   if (!modal) { return Promise.reject(new Error('Modal missing')); }
- *
- * The modal IS present in the HTML. So if the JS code had reached
- * showReRegModal(), it would have displayed correctly via the CSS
- * opacity transition. The CSS is not the primary failure.
- *
- * THE FIX
- * ────────
- * Replace the unauthenticated Firestore list query with Firebase Auth's
- * fetchSignInMethodsForEmail(). This:
- *   - Works WITHOUT authentication (no Firestore read)
- *   - Returns ['password'] if email is registered in Auth
- *   - Returns [] if not registered
- *   - Never throws PERMISSION_DENIED
- *   - Does not expose other users' Firestore data
- *
- * We also restructure handleReturningStudent to not require a Firestore
- * snap before sign-in (we don't have read permission until signed in).
- *
- * ═══════════════════════════════════════════════════════════════
- */
-
 import { db, auth } from '../firebase-config.js';
 import {
     createUserWithEmailAndPassword,
@@ -182,34 +86,6 @@ function setLoading(state) {
     submitSpin.style.display  = state ? 'inline-block' : 'none';
 }
 
-// ─── FIX: EMAIL EXISTENCE CHECK VIA FIREBASE AUTH ────────────
-//
-// BEFORE (broken):
-//   async function checkExistingUser(email) {
-//       const q    = query(collection(db, 'users'),
-//                          where('email', '==', email.toLowerCase()));
-//       const snap = await getDocs(q);   ← PERMISSION_DENIED (unauthenticated)
-//       ...
-//   }
-//
-// WHY IT FAILED:
-//   getDocs() with a where() clause is a Firestore LIST operation.
-//   The rule `allow read: if isAuth()` requires authentication.
-//   The student has no account yet → isAuth() = false → PERMISSION_DENIED.
-//   This exception propagates to the outer try/catch in DOMContentLoaded,
-//   which shows "Invalid or expired invite link", disables the form,
-//   and returns early — handleReturningStudent() is never called,
-//   so the modal never appears.
-//
-// AFTER (fixed):
-//   fetchSignInMethodsForEmail() is a Firebase Auth SDK call that:
-//   - Works WITHOUT any authentication (no Firestore read)
-//   - Returns ['password'] if the email is registered in Firebase Auth
-//   - Returns [] if the email is not registered
-//   - Never throws PERMISSION_DENIED
-//   - Requires no Firestore security rule changes
-//
-// ─────────────────────────────────────────────────────────────
 async function checkEmailExistsInAuth(email) {
     try {
         const methods = await fetchSignInMethodsForEmail(auth, email.toLowerCase());
@@ -221,15 +97,6 @@ async function checkEmailExistsInAuth(email) {
     }
 }
 
-/**
- * Tries to fetch the student's Firestore user document AFTER sign-in.
- * Called inside handleReturningStudent after signInWithEmailAndPassword
- * succeeds, so isAuth() = true and the read is permitted.
- *
- * Returns the user data or null if the document doesn't exist yet.
- * Not throwing on absence is important: Auth and Firestore can be
- * out of sync (account in Auth but no Firestore doc yet).
- */
 async function fetchUserDocAfterSignIn(uid) {
     try {
         const snap = await getDoc(doc(db, 'users', uid));
@@ -299,17 +166,6 @@ async function applyInvite(uid) {
     });
 }
 
-// ─── RE-REGISTER MODAL ────────────────────────────────────────
-//
-// FIX: Added a CSS-aware guard. The original modal CSS uses
-// opacity: 0 + pointer-events: none by default, and
-// .modal:not(.hidden) { opacity: 1 } as the active state.
-//
-// showReRegModal removes '.hidden' to trigger the CSS transition,
-// then also sets display:'flex' as an inline style.
-// We keep both for cross-browser reliability, but the primary
-// visibility mechanism is the CSS class removal.
-//
 function showReRegModal(userData) {
     const modal = document.getElementById('reRegModal');
     const info  = document.getElementById('reRegInfo');
@@ -320,12 +176,8 @@ function showReRegModal(userData) {
         return Promise.reject(new Error('Modal element missing from page'));
     }
 
-    // Remove hidden class FIRST — this triggers the CSS opacity transition.
-    // The CSS rule `.modal:not(.hidden)` sets opacity:1 and pointer-events:auto.
     modal.classList.remove('hidden');
 
-    // Also set inline display to ensure the element is visible
-    // even if CSS is somehow not loaded.
     modal.style.display      = 'flex';
     modal.style.opacity      = '1';
     modal.style.pointerEvents = 'auto';
@@ -334,8 +186,6 @@ function showReRegModal(userData) {
 
     if (pass) pass.value = '';
 
-    // Show what we know. Email is always available from the invite.
-    // Name/role/batch may be unknown until after sign-in.
     info.innerHTML = `
         <div class="reReg-summary">
             <p><strong>Email:</strong> ${sanitizeText(userData.email || '—')}</p>
@@ -394,33 +244,11 @@ function showReRegModal(userData) {
     });
 }
 
-// ─── RETURNING STUDENT INVITE HANDLER ────────────────────────
-//
-// FIX: Now accepts email (string) instead of existingSnap (Firestore doc).
-//
-// BEFORE:
-//   async function handleReturningStudent(existingSnap) {
-//       const uid      = existingSnap.id;          ← requires Firestore read
-//       const userData = existingSnap.data();       ← requires Firestore read
-//       const email    = userData.email || ...;
-//   }
-//
-// AFTER:
-//   async function handleReturningStudent(email) {
-//       // Show modal with email (always known from invite)
-//       // Sign in → get uid from Auth result → apply invite
-//       // Fetch Firestore doc after sign-in for richer modal info (optional)
-//   }
-//
-// This restructuring is necessary because we can't read Firestore
-// user documents before authentication. The email is always available
-// from the invite document (which allows unauthenticated get).
-//
 async function handleReturningStudent(email) {
     // Build minimal info object using only what we know without Firestore
     const minimalInfo = {
         email: email,
-        name:  null,   // unknown until signed in
+        name:  null,  
         role:  null,
         batch: null,
     };
@@ -430,11 +258,9 @@ async function handleReturningStudent(email) {
         password = await showReRegModal(minimalInfo);
     } catch (modalErr) {
         if (modalErr.message === 'User cancelled') {
-            // Student cancelled — restore form so they can try again
             setLoading(false);
             return;
         }
-        // Actual error (missing DOM elements etc.)
         console.error('[ReRegModal] Error:', modalErr);
         showBannerError('Could not show the confirmation dialog. Please refresh the page.');
         return;
@@ -505,28 +331,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // ── STEP 3: Check if email already exists in Firebase Auth ────
-        //
-        // FIX: Uses fetchSignInMethodsForEmail() instead of Firestore query.
-        //
-        // BEFORE (broken):
-        //   const existingSnap = await checkExistingUser(inviteData.email);
-        //   → PERMISSION_DENIED (unauthenticated Firestore list query)
-        //   → caught by outer catch → form disabled → modal never shows
-        //
-        // AFTER (fixed):
-        //   const emailExists = await checkEmailExistsInAuth(inviteData.email);
-        //   → Firebase Auth SDK call, no authentication required
-        //   → returns true/false without touching Firestore
-        //   → isolated try/catch so invite validation errors stay separate
-        //
         if (inviteData?.email) {
             try {
                 const emailExists = await checkEmailExistsInAuth(inviteData.email);
 
                 if (emailExists) {
-                    // RETURNING STUDENT: email already registered in Firebase Auth.
-                    // Hide the registration form and show the re-register modal.
                     const formSections = document.querySelectorAll(
                         '.form-section, .legal-consent-section, #main-submit-btn'
                     );
@@ -534,8 +343,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     await handleReturningStudent(inviteData.email);
 
-                    // If we reach here, student cancelled the modal.
-                    // Restore form so they can try again.
                     formSections.forEach(el => { el.style.display = ''; });
 
                     // Re-run setup after restore (was skipped during modal flow)
@@ -547,22 +354,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
 
-                // NEW STUDENT: email not in Auth → show normal registration form.
-
             } catch (err) {
-                // checkEmailExistsInAuth failure (network error etc.)
-                // Don't block registration — log and continue to normal form.
+
                 console.warn('[Invite] Auth email check failed:', err.message);
                 // Fall through to normal form setup
             }
         }
     }
 
-    // ── COMMON SETUP (all flows) ─────────────────────────────────
-    // Runs for:
-    //   (a) Non-invite registration (inviteId is null)
-    //   (b) Invite flow where email is NOT already registered
-    //   (c) Invite flow where email check failed (graceful fallback)
     toggleRegRole(currentRole);
     setupLegalHandlers();
     setupPasswordStrength();
@@ -778,14 +577,9 @@ form.addEventListener('submit', async (e) => {
             userCred = await createUserWithEmailAndPassword(auth, email, password);
 
         } catch (authErr) {
-            // Safety net for auth/email-already-in-use.
-            // This should not normally fire for invite flows because we already
-            // check in DOMContentLoaded, but handles edge cases
-            // (e.g. student registered externally between page-load and submit).
             if (authErr.code === 'auth/email-already-in-use') {
                 let enteredPassword;
                 try {
-                    // Show modal with email info; we don't have Firestore data yet
                     enteredPassword = await showReRegModal({ email, name: null, role: null, batch: null });
                 } catch {
                     setLoading(false);

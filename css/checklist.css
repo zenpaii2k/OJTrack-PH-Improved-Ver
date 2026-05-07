@@ -248,6 +248,34 @@
     font-weight: 600;
 }
 
+.upload-zone input[type="file"] {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-family: var(--font-body);
+}
+
+.upload-zone input[type="file"]::file-selector-button {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 600;
+
+    background: var(--bg-input);
+    color: var(--text-primary);
+
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+
+    padding: 8px 12px;
+    margin-right: 12px;
+    cursor: pointer;
+
+    transition: background var(--transition);
+}
+
+.upload-zone input[type="file"]::file-selector-button:hover {
+    background: var(--bg-elevated);
+}
+
 /* ─── UPLOAD MODAL ───────────────────────────────────────────── */
 .modal-content {
     background: var(--bg-surface);
