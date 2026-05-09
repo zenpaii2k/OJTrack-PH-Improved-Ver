@@ -121,8 +121,7 @@
 }
 
 @media (max-width: 600px) {
-    /* ojtattendance.js renders .log-entry with inline grid styles.
-       We override that inline grid with a stacked card layout. */
+
     .log-entry,
     div[class*="log-entry"],
     div[style*="grid-template-columns: 1.2fr"] {

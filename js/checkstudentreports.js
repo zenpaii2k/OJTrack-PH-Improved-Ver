@@ -22,6 +22,7 @@ const nameCache = {};
 let currentReportDocId = null;
 let currentStudentUid = null;
 let currentReportPdf = null;
+let activeReportSessionId = 0;
 
 protectPage('supervisor');
 
@@ -261,6 +262,10 @@ let reportListener = null;
 let pdfTimeout = null;
 
 async function loadStudentReport(uid, studentName, clickedItem) {
+    activeReportSessionId++;
+    currentReportPdf = null;
+    currentReportDocId = null;
+    currentStudentUid = uid;
 
     document.getElementById('adviser-pdf-preview').style.display = 'none';
     document.getElementById('report-empty-state').style.display = 'none';
@@ -320,18 +325,24 @@ async function loadStudentReport(uid, studentName, clickedItem) {
 
             renderHistory(report.history || []);
 
-            if (pdfTimeout) clearTimeout(pdfTimeout);
+            const sessionId = ++activeReportSessionId;
 
             pdfTimeout = setTimeout(async () => {
                 const compiled = await compileStudentPreviewData(uid, u);
 
+                // ❌ ignore stale requests
+                if (sessionId !== activeReportSessionId) return;
                 if (uid !== selectedStudentId) return;
 
-                requestAnimationFrame(() => {
-                    currentReportPdf = generateAdviserPreview(compiled);
-                });
+                const pdf = generateAdviserPreview(compiled);
 
-            }, 300); 
+                // ❌ double safety check
+                if (sessionId !== activeReportSessionId) return;
+
+                currentReportPdf = pdf;
+                currentStudentUid = uid;
+
+            }, 300);
         });
 
     } catch (e) {
@@ -627,12 +638,21 @@ document.addEventListener("click", async (e) => {
 });
 
 document.getElementById('download-report-btn').onclick = () => {
-    if (currentReportPdf) {
-        const studentName = document.getElementById('view-student-name').innerText;
-        currentReportPdf.save(`OJT_Report_${studentName.replace(/\s+/g, '_')}.pdf`);
-    } else {
-        alert("No PDF generated.");
+    const displayedStudent = selectedStudentId;
+    
+    if (!currentReportPdf || !displayedStudent) {
+        return alert("No PDF generated.");
     }
+
+    if (displayedStudent !== currentStudentUid) {
+        return alert("Report mismatch detected. Please reselect the student.");
+    }
+
+    const studentName = document.getElementById('view-student-name').innerText;
+
+    currentReportPdf.save(
+        `OJT_Report_${studentName.replace(/\s+/g, '_')}.pdf`
+    );
 };
 
 async function submitDecision(reportDocId, decision, studentUid) {

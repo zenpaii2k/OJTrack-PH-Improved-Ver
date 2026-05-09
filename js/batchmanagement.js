@@ -356,24 +356,6 @@ window.deleteBatch = async function(batchId, batchName) {
     }
 };
 
-// ─── GENERATE INVITE LINK ─────────────────────────────────────
-/**
- * FIX: Revoke existing pending invites for the same email + batch before
- * creating a new one.
- *
- * ORIGINAL BUG:
- *   Every call to generateInviteLink() unconditionally called addDoc(),
- *   producing a NEW invite document without invalidating the previous one.
- *   If the adviser generated a link for a student, then removed and
- *   re-invited them, BOTH invite links were valid simultaneously.
- *   The student (or anyone with the first link) could use the old link
- *   to rejoin the batch even after it was superseded.
- *
- * FIX:
- *   Query invitations for matching email + batchId + status:'pending'.
- *   Revoke (set status:'revoked') all existing matches before addDoc().
- *   This guarantees only ONE valid invite per student per batch at any time.
- */
 window.generateInviteLink = async function(batchIdOverride) {
     const batchId = batchIdOverride || activeBatchId;
 
@@ -569,8 +551,10 @@ async function viewStudentList(batchId) {
                     </div>
                     <small>${progress}% Complete</small>
                 </td>
-                <td>
-                    <button onclick="removeStudent('${uid}')" class="btn-delete-small">Remove</button>
+                <td class="action-cell">
+                    <button onclick="removeStudent('${uid}')" class="btn-delete-small">
+                        Remove
+                    </button>
                 </td>`;
         };
 

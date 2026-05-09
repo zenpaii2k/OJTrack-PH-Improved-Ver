@@ -228,16 +228,42 @@
 }
 
 .btn-delete-small {
-    padding: 5px 5px;
+    padding: 6px 10px;
     border-radius: 6px;
     border: none;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
     transition: 0.2s ease;
     background: #ef4444;
     color: #fff;
-    text-align: center;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    white-space: nowrap;  
+    min-width: 70px;    
+}
+
+td {
+    vertical-align: middle;
+}
+
+td:last-child {
+    min-width: 90px;
+    white-space: nowrap;
+}
+
+.batch-grid td {
+    overflow: visible;
+}
+
+.action-cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 90px;
 }
 
 /* ─── WIDE STUDENT MODAL ────────────────────────────────────── */

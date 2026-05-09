@@ -87,7 +87,7 @@ body {
   font-family: var(--font-body);
   background-color: var(--bg-main);
   color: var(--text-primary);
-  display: flex;
+  display: block;
   min-height: 100vh;
   transition: background-color var(--transition-slow), color var(--transition-slow);
   font-size: 15px;
@@ -242,6 +242,7 @@ body {
 .dashboard-header {
   height: var(--header-height);
   display: flex;
+  max-width: 100%;
   justify-content: space-between;
   align-items: center;
   padding: 0 28px;
@@ -321,10 +322,10 @@ body {
 
 /* Notification dropdown */
 .notif-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 320px;
+  position: fixed;
+  top: 72px;
+  right: 10px;
+  width: min(320px, calc(100vw - 24px));
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-lg);

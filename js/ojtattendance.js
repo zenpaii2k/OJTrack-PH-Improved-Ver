@@ -20,8 +20,8 @@ initTheme();
 let currentCalMonth = new Date();
 let userData = null;
 let loggedDateMap = new Map(); // key → status
-
 let attendanceUnsub = null;
+let isOjtComplete = false;
 
 // ─── AUTH ────────────────────────────────────────────────────
 protectPage('student').then(async (user) => {
@@ -98,21 +98,8 @@ async function loadUserProfile(user) {
             parseFloat(userData.requiredHours) || 600
         );
 
-        const completed = parseFloat(userData.hoursCompleted) || 0;
-        const required  = parseFloat(userData.requiredHours) || 600;
-
-        if (completed >= required) {
-            const submitBtn = document.getElementById('submit-log-btn');
-
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = '✅ OJT Hours Completed';
-            }
-
-            showError(
-                `You already completed your required ${required} OJT hours.`
-            );
-        }
+        const required = parseFloat(userData.requiredHours) || 600;
+        updateSummary(0, required);
 
         return true; 
 
@@ -196,8 +183,13 @@ function setupForm(user) {
     if (!form) return;
 
     form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        showError('');
+    e.preventDefault();
+    showError('');
+
+    if (isOjtComplete) {
+        showError('Submission blocked. You have completed your required OJT hours.');
+        return;
+    }
 
         const tIn  = getTimeString('in');
         const tOut = getTimeString('out');
@@ -234,20 +226,7 @@ function setupForm(user) {
             const requiredHours  = parseFloat(userData?.requiredHours) || 600;
 
             if (completedHours >= requiredHours) {
-
-                showError(
-                    `You have already completed your required ${requiredHours} OJT hours. Attendance submission is now disabled.`
-                );
-
-                alert(
-                    `OJT requirement completed.\n\nYou already reached ${completedHours} / ${requiredHours} hours.`
-                );
-
-                if (btn) {
-                    btn.disabled = true;
-                    btn.textContent = '✅ OJT Completed!';
-                }
-
+                lockCompletedState(requiredHours, completedHours);
                 return;
             }
 
@@ -351,17 +330,23 @@ function setupForm(user) {
             }  
 
             finally {
+                try {
+                    const freshUserSnap = await getDoc(doc(db, "users", user.uid));
+                    if (freshUserSnap.exists()) {
+                        userData = freshUserSnap.data(); // update local cache with latest data
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch fresh user data:", e);
+                }
+
                 const latestCompleted = parseFloat(userData?.hoursCompleted) || 0;
                 const latestRequired  = parseFloat(userData?.requiredHours) || 600;
 
-                if (btn) {
-                    if (latestCompleted >= latestRequired) {
-                        btn.disabled = true;
-                        btn.textContent = '✅ OJT Hours Completed';
-                    } else {
-                        btn.disabled = false;
-                        btn.textContent = '🕒 Submit Attendance Log';
-                    }
+                if (latestCompleted >= latestRequired) {
+                    lockCompletedState(latestRequired, latestCompleted);
+                } else if (btn && !window._isOjtLocked) {
+                    btn.disabled = false;
+                    btn.textContent = '🕒 Submit Attendance Log';
                 }
             }
     });
@@ -411,6 +396,21 @@ function showNoBatchState(user, data) {
     return false;
 }
 
+function lockCompletedState(requiredHours, completedHours) {
+    const btn = document.getElementById('submit-log-btn');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '✅ OJT Hours Completed';
+    }
+
+    showError(
+        `You already completed your required OJT hours.`
+    );
+
+    window._isOjtLocked = true;
+}
+
 // Ensure month and day are correctly padded for comparison
 function makeDateKey(date) {
     const y = date.getFullYear();
@@ -421,14 +421,15 @@ function makeDateKey(date) {
 }
 
 // ─── REALTIME LOG LISTENER ────────────────────────────────────
+// ─── REALTIME LOG LISTENER ────────────────────────────────────
 function listenToAttendanceLogs(uid) {
-     if (attendanceUnsub) attendanceUnsub();
+    if (attendanceUnsub) attendanceUnsub();
 
     const q = query(
         collection(db, 'attendance'),
         where('uid', '==', uid),
         orderBy('timestamp', 'desc'),
-        limit(60)
+        limit(100) // Increase slightly to ensure we capture all logs for calculation
     );
 
     attendanceUnsub = onSnapshot(q, (snap) => {
@@ -437,34 +438,45 @@ function listenToAttendanceLogs(uid) {
 
         if (!listEl) return;
 
+        let totalApprovedHours = 0;
+
+        // Process logs and calculate approved hours
         snap.docs.forEach(d => {
             const log = d.data();
-            let dateObj = null;
-
-            if (log.timestamp) {
-                dateObj = log.timestamp.toDate();
-            } else if (log.displayDate) {
-                dateObj = new Date(log.displayDate);
+            
+            // Calculate total approved hours dynamically from the 'attendance' collection
+            if (log.status === 'Approved') {
+                const hrs = computeHoursDecimal(log.timeIn, log.timeOut);
+                totalApprovedHours += hrs;
             }
 
+            // Map calendar dates...
+            let dateObj = log.timestamp ? log.timestamp.toDate() : (log.displayDate ? new Date(log.displayDate) : null);
             if (dateObj) {
-
                 const key = dateObj.toDateString();
                 const status = (log.status || 'Pending').trim();
-
                 if (loggedDateMap.get(key) !== 'Approved') {
                     loggedDateMap.set(key, status);
                 }
             }
         });
 
-        if (snap.empty) {
-            listEl.innerHTML = '<p class="empty-text">No attendance records yet.</p>';
-            updateSummary(0, parseFloat(userData?.requiredHours) || 600);
-            return;
-        }
+        // Get the required hours limit
+        const requiredHours = parseFloat(userData?.requiredHours) || 600;
 
-        let totalApproved = 0;
+        // Force UI Lock if dynamic hours exceed or equal required hours
+        if (totalApprovedHours >= requiredHours) {
+            isOjtComplete = true;
+            lockCompletedState(requiredHours, totalApprovedHours);
+        } else {
+            isOjtComplete = false;
+            const btn = document.getElementById('submit-log-btn');
+            if (btn && userData?.batchId) {
+                btn.disabled = false;
+                btn.textContent = '🕒 Submit Attendance Log';
+                showError(''); 
+            }
+        }
 
         listEl.innerHTML = snap.docs.map(d => {
             const log  = d.data();
@@ -475,28 +487,6 @@ function listenToAttendanceLogs(uid) {
             const hrsStr = hrs > 0 ? `${hrs.toFixed(2)}h` : '—';
             const note = log.note ? sanitizeText(log.note) : '';
 
-            if (log.status === 'Approved') totalApproved += hrs;
-
-            if (log.timestamp?.toDate) {
-                const d = log.timestamp.toDate();
-
-                // normalize to local midnight (removes UTC shift issues)
-                const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-
-                const key = makeDateKey(local);
-
-                const status = (log.status || 'Pending').trim();
-
-                loggedDateMap.set(
-                    key,
-                    status.toLowerCase() === 'approved'
-                        ? 'Approved'
-                        : status.toLowerCase() === 'rejected'
-                            ? 'Rejected'
-                            : 'Pending'
-                );
-            }
-
             const statusMap = {
                 Approved: '<span class="badge badge-success">✅ Approved</span>',
                 Rejected: '<span class="badge badge-danger">❌ Rejected</span>',
@@ -504,7 +494,6 @@ function listenToAttendanceLogs(uid) {
             };
 
             const badge = statusMap[log.status] || statusMap.Pending;
-
             const hasFile = log.attachment;
 
             return `
@@ -515,47 +504,60 @@ function listenToAttendanceLogs(uid) {
                 <div class="col-hours">${hrsStr}</div>
                 <div class="col-status">${badge}</div>
                 <div class="col-file">
-                    ${hasFile
-                        ? `<button class="view-btn" data-id="${sanitizeText(d.id)}">View</button>`
-                        : '<span class="no-file">—</span>'}
+                    ${hasFile ? `<button class="view-btn" data-id="${sanitizeText(d.id)}">View</button>` : '<span class="no-file">—</span>'}
                 </div>
             </div>
             ${note ? `<div class="log-note">📝 ${note}</div>` : ''}
         `;
         }).join('');
 
-        window._attendanceLogs = {};
+        // Cache logs locally for viewing attachments
+        window._attendanceLogs = new Map();
         snap.docs.forEach(d => {
-            window._attendanceLogs[d.id] = d.data();
+            window._attendanceLogs.set(d.id, d.data());
         });
 
-        updateSummary(totalApproved, parseFloat(userData?.requiredHours) || 600);
+        updateSummary(totalApprovedHours, requiredHours);
         renderCalendar(currentCalMonth);
     });
 }
 
 window.openAttachmentById = function(id) {
-    const log = window._attendanceLogs?.[id];
+    const log = window._attendanceLogs?.get(id);
     if (!log?.attachment) return;
     openFileData(log.attachment);
 };
 
 function openFileData(src) {
     if (!src) return;
-    if (src.startsWith('https://') || src.startsWith('http://')) {
+
+    // URL file
+    if (src.startsWith('http')) {
         window.open(src, '_blank', 'noopener,noreferrer');
         return;
     }
+
+    // Base64 file
     if (src.startsWith('data:')) {
         try {
-            const [meta, data] = src.split(';base64,');
-            const type  = meta.split(':')[1];
-            const raw   = atob(data);
-            const arr   = new Uint8Array(raw.length);
-            for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-            window.open(URL.createObjectURL(new Blob([arr], { type })), '_blank', 'noopener,noreferrer');
-        } catch {
-            alert('Could not open attachment.');
+            const [meta, base64] = src.split(';base64,');
+            const mime = meta.split(':')[1] || 'application/octet-stream';
+
+            const byteChars = atob(base64);
+            const byteArray = new Uint8Array(byteChars.length);
+
+            for (let i = 0; i < byteChars.length; i++) {
+                byteArray[i] = byteChars.charCodeAt(i);
+            }
+
+            const blob = new Blob([byteArray], { type: mime });
+            const url = URL.createObjectURL(blob);
+
+            window.open(url, '_blank', 'noopener,noreferrer');
+
+        } catch (err) {
+            console.error('Open file error:', err);
+            alert('Unable to open file.');
         }
     }
 }

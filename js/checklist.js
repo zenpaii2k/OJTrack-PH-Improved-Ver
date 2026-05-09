@@ -259,7 +259,7 @@ function renderChecklistRow(opt, tbody, uid) {
                     : ''}
                 ${!isLocked
                     ? `<button class="btn-icon-upload"onclick="openUploadModal('${formKeys.has(opt.val) ? 'Forms' : 'Requirements'}', '${opt.val}')" title="Upload">📤 Upload</button>`
-                    : `<span style="font-size:0.75rem;color:var(--text-muted);">🔒 ${sanitizeText(status)}</span>`}
+                    : ''}
             </div>
         </td>`;
     tbody.appendChild(row);
