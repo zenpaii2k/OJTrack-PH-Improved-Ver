@@ -504,7 +504,14 @@ function listenToAttendanceLogs(uid) {
                 <div class="col-hours">${hrsStr}</div>
                 <div class="col-status">${badge}</div>
                 <div class="col-file">
-                    ${hasFile ? `<button class="view-btn" data-id="${sanitizeText(d.id)}">View</button>` : '<span class="no-file">—</span>'}
+                    ${hasFile
+                        ? `<button 
+                                class="view-btn"
+                                onclick="previewAttendanceAttachment('${sanitizeText(d.id)}')">
+                                View
+                        </button>`
+                        : '<span class="no-file">—</span>'
+                    }
                 </div>
             </div>
             ${note ? `<div class="log-note">📝 ${note}</div>` : ''}
@@ -526,7 +533,358 @@ window.openAttachmentById = function(id) {
     const log = window._attendanceLogs?.get(id);
     if (!log?.attachment) return;
     openFileData(log.attachment);
+}
+
+    // ─────────────────────────────────────────────────────────────
+// SAFARI / IOS SAFE DOCUMENT PREVIEW
+// ─────────────────────────────────────────────────────────────
+
+let _currentBlobUrl = null;
+
+window.previewAttendanceAttachment = function(id) {
+
+    const log = window._attendanceLogs?.get(id);
+
+    if (!log?.attachment) {
+        alert('No attachment available.');
+        return;
+    }
+
+    // Create modal dynamically if it doesn't exist
+    let modal = document.getElementById('previewModal');
+
+    if (!modal) {
+
+        modal = document.createElement('div');
+
+        modal.id = 'previewModal';
+
+        const HEADER_HEIGHT = 100; 
+
+        modal.style.cssText = `
+        position:fixed;
+            top:${HEADER_HEIGHT}px;
+            left:0;
+            right:0;
+            bottom:0;
+
+            background:rgba(0,0,0,.75);
+
+            display:flex;
+            align-items:center;
+            justify-content:center;
+
+            z-index:9990;
+
+            padding:20px;
+
+            box-sizing:border-box;
+        `;
+
+        modal.innerHTML = `
+            <div id="previewBox"
+                style="
+                    position:relative;
+                    width:min(1000px,95vw);
+                    height:min(calc(100vh - ${HEADER_HEIGHT + 40}px), 900px);
+                    background:#111;
+                    border-radius:14px;
+                    overflow:hidden;
+                ">
+
+                <button id="closePreviewBtn"
+                    style="
+                        position:absolute;
+                        top:12px;
+                        right:12px;
+                        width:40px;
+                        height:40px;
+                        border:none;
+                        border-radius:50%;
+                        background:rgba(255,255,255,.15);
+                        color:#fff;
+                        cursor:pointer;
+                        z-index:99999;
+                        font-size:1rem;
+                        box-shadow:0 2px 12px rgba(0,0,0,.35);
+                    ">
+                    ✕
+                </button>
+
+                <div id="previewContainer"
+                    style="
+                        width:100%;
+                        height:100%;
+                        background:#1a1a1a;
+                    ">
+                </div>
+
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document
+            .getElementById('closePreviewBtn')
+            .addEventListener('click', closePreviewModal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closePreviewModal();
+            }
+        });
+
+    } else {
+        modal.style.display = 'flex';
+    }
+
+    const container =
+        document.getElementById('previewContainer');
+
+    // Cleanup old blob
+    if (_currentBlobUrl) {
+        URL.revokeObjectURL(_currentBlobUrl);
+        _currentBlobUrl = null;
+    }
+
+    container.innerHTML = '';
+
+    const fileData = log.attachment;
+
+    const mimeType = getMimeType(fileData);
+
+    // ─────────────────────────────────────────
+    // IMAGE PREVIEW
+    // ─────────────────────────────────────────
+
+    if (mimeType.startsWith('image/')) {
+
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+
+        const img = document.createElement('img');
+
+        img.src = fileData;
+
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        img.style.objectFit = 'contain';
+
+        container.appendChild(img);
+
+        return;
+    }
+
+    // ─────────────────────────────────────────
+    // PDF PREVIEW
+    // ─────────────────────────────────────────
+
+    if (mimeType === 'application/pdf') {
+
+        try {
+            _currentBlobUrl = dataUriToBlobUrl(fileData);
+        } catch (err) {
+            console.error(err);
+            _currentBlobUrl = fileData;
+        }
+
+        const isIOS =
+            /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' &&
+             navigator.maxTouchPoints > 1);
+
+        // iOS Safari fallback
+        if (isIOS) {
+
+            container.innerHTML = `
+                <div style="
+                    display:flex;
+                    flex-direction:column;
+                    align-items:center;
+                    justify-content:center;
+                    height:100%;
+                    padding:32px;
+                    text-align:center;
+                    gap:16px;
+                    color:white;
+                ">
+
+                    <div style="font-size:3rem;">📄</div>
+
+                    <p>
+                        PDF preview is not supported
+                        on this browser.
+                    </p>
+
+                    <a href="${_currentBlobUrl}"
+                       download="document.pdf"
+                       style="
+                            display:inline-block;
+                            padding:10px 24px;
+                            background:#f5c542;
+                            color:#000;
+                            border-radius:8px;
+                            text-decoration:none;
+                            font-weight:700;
+                       ">
+                        ⬇ Download PDF
+                    </a>
+
+                </div>
+            `;
+
+        } else {
+
+            container.style.paddingTop = '56px';
+            container.style.boxSizing = 'border-box';
+            container.style.background = '#222';
+
+            const embedWrap = document.createElement('div');
+
+            embedWrap.style.width = '100%';
+            embedWrap.style.height = '100%';
+            embedWrap.style.borderRadius = '0';
+            embedWrap.style.overflow = 'hidden';
+
+            const embed = document.createElement('embed');
+
+            embed.src = _currentBlobUrl + '#toolbar=1&navpanes=0&scrollbar=1';
+            embed.type = 'application/pdf';
+
+            embed.style.width = '100%';
+            embed.style.height = '100%';
+            embed.style.border = 'none';
+            embed.style.display = 'block';
+            embed.style.background = '#fff';
+
+            embedWrap.appendChild(embed);
+
+            container.appendChild(embedWrap);
+        }
+
+        return;
+    }
+
+    // ─────────────────────────────────────────
+    // DOCX / XLSX / OTHER FILES
+    // ─────────────────────────────────────────
+
+    try {
+        _currentBlobUrl = dataUriToBlobUrl(fileData);
+    } catch {
+        _currentBlobUrl = fileData;
+    }
+
+    container.innerHTML = `
+        <div style="
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            height:100%;
+            padding:32px;
+            text-align:center;
+            gap:16px;
+            color:white;
+        ">
+
+            <div style="font-size:3rem;">📄</div>
+
+            <p>
+                This file type cannot
+                be previewed in the browser.
+            </p>
+
+            <a href="${_currentBlobUrl}"
+               download="document"
+               style="
+                    padding:10px 24px;
+                    background:#f5c542;
+                    color:#000;
+                    border-radius:8px;
+                    text-decoration:none;
+                    font-weight:700;
+               ">
+                ⬇ Download File
+            </a>
+
+        </div>
+    `;
 };
+
+// ─────────────────────────────────────────
+// CLOSE PREVIEW
+// ─────────────────────────────────────────
+
+function closePreviewModal() {
+
+    const modal =
+        document.getElementById('previewModal');
+
+    if (modal) {
+        modal.style.display = 'none';
+    }
+
+    const container =
+        document.getElementById('previewContainer');
+
+    if (container) {
+        container.innerHTML = '';
+    }
+
+    if (_currentBlobUrl) {
+        URL.revokeObjectURL(_currentBlobUrl);
+        _currentBlobUrl = null;
+    }
+}
+
+// ─────────────────────────────────────────
+// MIME TYPE DETECTOR
+// ─────────────────────────────────────────
+
+function getMimeType(dataUri) {
+
+    if (!dataUri ||
+        typeof dataUri !== 'string') {
+        return '';
+    }
+
+    const match =
+        dataUri.match(/^data:(.*?);base64,/);
+
+    return match ? match[1] : '';
+}
+
+// ─────────────────────────────────────────
+// DATA URI → BLOB URL
+// ─────────────────────────────────────────
+
+function dataUriToBlobUrl(dataUri) {
+
+    const [meta, base64] =
+        dataUri.split(';base64,');
+
+    const mime =
+        meta.split(':')[1] ||
+        'application/octet-stream';
+
+    const byteChars = atob(base64);
+
+    const byteArray =
+        new Uint8Array(byteChars.length);
+
+    for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] =
+            byteChars.charCodeAt(i);
+    }
+
+    const blob = new Blob([byteArray], {
+        type: mime
+    });
+
+    return URL.createObjectURL(blob);
+}
 
 function openFileData(src) {
     if (!src) return;

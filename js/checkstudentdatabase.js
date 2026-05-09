@@ -449,22 +449,337 @@ async function viewStudentDetails(docId, studentData) {
     });
 }
 
-window.openAttachmentModal = function(fileData) {
-    const container = document.getElementById('attachment-container');
+let _currentAttachmentBlobUrl = null;
 
-    if (fileData.startsWith('data:image')) {
-        container.innerHTML = `<img src="${fileData}" style="width:100%; height:100%; object-fit:contain;">`;
-    } else {
-        container.innerHTML = `<iframe src="${fileData}" width="100%" height="100%"></iframe>`;
+window.openAttachmentModal = function(fileData) {
+
+    if (!fileData) {
+        alert('No attachment available.');
+        return;
     }
 
-    document.getElementById('attachment-modal').style.display = 'flex';
+    // Create modal dynamically
+    let modal = document.getElementById('previewModal');
+
+    if (!modal) {
+
+        const HEADER_HEIGHT = 100;
+
+        modal = document.createElement('div');
+
+        modal.id = 'previewModal';
+
+        modal.style.cssText = `
+            position:fixed;
+            top:${HEADER_HEIGHT}px;
+            left:0;
+            right:0;
+            bottom:0;
+            background:rgba(0,0,0,.78);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            z-index:9999;
+            padding:20px;
+            box-sizing:border-box;
+        `;
+
+        modal.innerHTML = `
+            <div id="previewBox"
+                style="
+                    position:relative;
+                    width:min(1000px,95vw);
+                    height:min(calc(100vh - ${HEADER_HEIGHT + 40}px), 900px);
+                    background:#111;
+                    border-radius:14px;
+                    overflow:hidden;
+                    box-shadow:0 12px 40px rgba(0,0,0,.45);
+                ">
+
+                <button id="closePreviewBtn"
+                    style="
+                        position:absolute;
+                        top:12px;
+                        right:12px;
+                        width:42px;
+                        height:42px;
+                        border:none;
+                        border-radius:50%;
+                        background:rgba(255,255,255,.18);
+                        color:#fff;
+                        cursor:pointer;
+                        z-index:999999;
+                        font-size:1rem;
+                        backdrop-filter:blur(4px);
+                    ">
+                    ✕
+                </button>
+
+                <div id="previewContainer"
+                    style="
+                        width:100%;
+                        height:100%;
+                        background:#1a1a1a;
+                    ">
+                </div>
+
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document
+            .getElementById('closePreviewBtn')
+            .addEventListener('click', closeAttachmentModal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeAttachmentModal();
+            }
+        });
+    }
+
+    modal.style.display = 'flex';
+
+    const container = document.getElementById('previewContainer');
+
+    // Cleanup previous blob
+    if (_currentAttachmentBlobUrl) {
+        URL.revokeObjectURL(_currentAttachmentBlobUrl);
+        _currentAttachmentBlobUrl = null;
+    }
+
+    container.innerHTML = '';
+    container.style.paddingTop = '0';
+    container.style.display = 'block';
+
+    // Detect mime type
+    const mimeType = getMimeType(fileData);
+
+    // ─────────────────────────────
+    // IMAGE
+    // ─────────────────────────────
+
+    if (mimeType.startsWith('image/')) {
+
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+
+        const img = document.createElement('img');
+
+        img.src = fileData;
+
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        img.style.objectFit = 'contain';
+
+        container.appendChild(img);
+
+        return;
+    }
+
+    // ─────────────────────────────
+    // PDF
+    // ─────────────────────────────
+
+    if (mimeType === 'application/pdf') {
+
+        try {
+            _currentAttachmentBlobUrl = dataUriToBlobUrl(fileData);
+        } catch (err) {
+            console.error(err);
+            _currentAttachmentBlobUrl = fileData;
+        }
+
+        const isIOS =
+            /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' &&
+             navigator.maxTouchPoints > 1);
+
+        // iOS fallback
+        if (isIOS) {
+
+            container.innerHTML = `
+                <div style="
+                    display:flex;
+                    flex-direction:column;
+                    align-items:center;
+                    justify-content:center;
+                    height:100%;
+                    padding:32px;
+                    text-align:center;
+                    gap:16px;
+                    color:white;
+                ">
+
+                    <div style="font-size:3rem;">📄</div>
+
+                    <p>
+                        PDF preview is not supported
+                        on this browser.
+                    </p>
+
+                    <a href="${_currentAttachmentBlobUrl}"
+                       download="document.pdf"
+                       style="
+                            display:inline-block;
+                            padding:10px 24px;
+                            background:#f5c542;
+                            color:#000;
+                            border-radius:8px;
+                            text-decoration:none;
+                            font-weight:700;
+                       ">
+                        ⬇ Download PDF
+                    </a>
+
+                </div>
+            `;
+
+        } else {
+
+            // Important fix for overlapping browser PDF toolbar
+            container.style.paddingTop = '56px';
+            container.style.boxSizing = 'border-box';
+            container.style.background = '#222';
+
+            const embedWrap = document.createElement('div');
+
+            embedWrap.style.width = '100%';
+            embedWrap.style.height = '100%';
+            embedWrap.style.overflow = 'hidden';
+
+            const embed = document.createElement('embed');
+
+            embed.src =
+                _currentAttachmentBlobUrl +
+                '#toolbar=1&navpanes=0&scrollbar=1';
+
+            embed.type = 'application/pdf';
+
+            embed.style.width = '100%';
+            embed.style.height = '100%';
+            embed.style.border = 'none';
+            embed.style.display = 'block';
+            embed.style.background = '#fff';
+
+            embedWrap.appendChild(embed);
+
+            container.appendChild(embedWrap);
+        }
+
+        return;
+    }
+
+    // ─────────────────────────────
+    // OTHER FILES
+    // ─────────────────────────────
+
+    try {
+        _currentAttachmentBlobUrl =
+            dataUriToBlobUrl(fileData);
+
+    } catch {
+        _currentAttachmentBlobUrl = fileData;
+    }
+
+    container.innerHTML = `
+        <div style="
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            height:100%;
+            padding:32px;
+            text-align:center;
+            gap:16px;
+            color:white;
+        ">
+
+            <div style="font-size:3rem;">📄</div>
+
+            <p>
+                This file type cannot
+                be previewed in the browser.
+            </p>
+
+            <a href="${_currentAttachmentBlobUrl}"
+               download="document"
+               style="
+                    padding:10px 24px;
+                    background:#f5c542;
+                    color:#000;
+                    border-radius:8px;
+                    text-decoration:none;
+                    font-weight:700;
+               ">
+                ⬇ Download File
+            </a>
+
+        </div>
+    `;
 };
 
 window.closeAttachmentModal = function() {
-    document.getElementById('attachment-modal').style.display = 'none';
-    document.getElementById('attachment-container').innerHTML = '';
+
+    const modal = document.getElementById('previewModal');
+
+    if (modal) {
+        modal.style.display = 'none';
+    }
+
+    const container = document.getElementById('previewContainer');
+
+    if (container) {
+        container.innerHTML = '';
+    }
+
+    // Cleanup blob
+    if (_currentAttachmentBlobUrl) {
+        URL.revokeObjectURL(_currentAttachmentBlobUrl);
+        _currentAttachmentBlobUrl = null;
+    }
 };
+
+function getMimeType(dataUri) {
+
+    if (!dataUri ||
+        typeof dataUri !== 'string') {
+        return '';
+    }
+
+    const match =
+        dataUri.match(/^data:(.*?);base64,/);
+
+    return match ? match[1] : '';
+}
+
+function dataUriToBlobUrl(dataUri) {
+
+    const [meta, base64] =
+        dataUri.split(';base64,');
+
+    const mime =
+        meta.split(':')[1] ||
+        'application/octet-stream';
+
+    const byteChars = atob(base64);
+
+    const byteArray =
+        new Uint8Array(byteChars.length);
+
+    for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] =
+            byteChars.charCodeAt(i);
+    }
+
+    const blob = new Blob([byteArray], {
+        type: mime
+    });
+
+    return URL.createObjectURL(blob);
+}
 
 // Helper to update the Progress UI
 function updateProgressBar(approved, required) {

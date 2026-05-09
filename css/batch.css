@@ -284,6 +284,32 @@ td:last-child {
     flex-shrink: 0;
 }
 
+#batch-student-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#batch-student-table th,
+#batch-student-table td {
+    white-space: nowrap;
+}
+
+#batch-student-table th:last-child,
+#batch-student-table td:last-child {
+    min-width: 110px;
+    text-align: center;
+}
+
+#batch-student-table th:last-child {
+    display: table-cell !important;
+    visibility: visible !important;
+}
+
+.student-table-wrapper {
+    overflow-x: auto;
+}
+
+
 /* ─── INVITE SECTION ────────────────────────────────────────── */
 .invite-section {
     background: var(--bg-elevated);
@@ -362,4 +388,43 @@ td:last-child {
     .batch-stat-row { justify-content: space-around; }
     .batch-grid { grid-template-columns: 1fr; }
     .invite-row { flex-direction: column; }
+.wide-modal {
+    width: 95%;
+    max-width: 720px !important;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.student-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+.dashboard-table {
+    min-width: 650px;
+}
+
+td.action-cell {
+    display: table-cell !important;
+    min-width: 90px;
+    white-space: nowrap;
+}
+
+ #batch-student-table {
+        min-width: 700px;
+    }
+
+    #batch-student-table th,
+    #batch-student-table td {
+        font-size: 0.8rem;
+    }
+
+    .btn-delete-small {
+        min-width: 80px;
+        font-size: 0.75rem;
+    }
+
+.modal-overlay {
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
 }
