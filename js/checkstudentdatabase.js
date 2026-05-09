@@ -384,12 +384,12 @@ async function viewStudentDetails(docId, studentData) {
             card.className = "log-review-card";
 
             card.innerHTML = `
-                <div class="log-card-inner" style= padding:15px; border-radius:8px; margin-bottom:12px; border-left: 5px solid ${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#CC9704'};">
+                <div class="log-card-inner" style= padding:15px; border-radius:8px; margin-bottom:12px; border-left: 5px solid ${status === 'Approved' ? '#90EE90' : status === 'Rejected' ? '#e74c3c' : '#CC9704'};">
                     <div style="display:flex; align-items:flex-start; gap:15px;">
                         <div style="flex:1; min-width:0;">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <strong style="color:#CC9704 font-size: 1.1rem;">${log.displayDate}</strong>
-                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#CC9704'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
+                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#90EE90' : status === 'Rejected' ? '#e74c3c' : '#CC9704'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
                                     ${status.toUpperCase()}
                                 </span>
                             </div>

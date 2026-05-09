@@ -241,18 +241,22 @@ async function compileFullData(uid) {
         const required  = parseFloat(userData.requiredHours)  || 600;
         const completed = parseFloat(userData.hoursCompleted) || 0;
 
-        // Get adviser name from batch
-        const batchQ   = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
-        const batchSnap = await getDocs(batchQ);
+        // CHECK IF STUDENT HAS AN ACTIVE BATCH ASSIGNED FIRST
+        const batchId = userData?.batchId || userData?.batch || null;
         let adviserName = 'Not Assigned';
 
-        if (!batchSnap.empty) {
-            const batchData = batchSnap.docs[0].data();
-            if (batchData.supervisorId) {
-                const advSnap = await getDoc(doc(db, "users", batchData.supervisorId));
-                if (advSnap.exists()) {
-                    const ad = advSnap.data();
-                    adviserName = ad.name || `${ad.firstName || ''} ${ad.surname || ''}`.trim() || 'Adviser';
+        if (batchId) {
+            const batchQ   = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
+            const batchSnap = await getDocs(batchQ);
+
+            if (!batchSnap.empty) {
+                const batchData = batchSnap.docs[0].data();
+                if (batchData.supervisorId) {
+                    const advSnap = await getDoc(doc(db, "users", batchData.supervisorId));
+                    if (advSnap.exists()) {
+                        const ad = advSnap.data();
+                        adviserName = ad.name || `${ad.firstName || ''} ${ad.surname || ''}`.trim() || 'Adviser';
+                    }
                 }
             }
         }
@@ -372,7 +376,7 @@ function generateAdviserPreview(data) {
 
     pdf.autoTable({
         startY: pdf.lastAutoTable.finalY + 15,
-        head: [['Date', 'Time In', 'Time Out', 'Accomplishment', 'Status']], 
+        head: [['Date', 'Time In', 'Time Out', 'Note', 'Status']], 
         body: reportData.attendance.length > 0
             ? reportData.attendance.map(a => [
             a.displayDate || formatTimestamp(a.timestamp),

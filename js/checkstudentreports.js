@@ -453,7 +453,7 @@ function generateAdviserPreview(reportData, generatedAt) {
 
     pdfdoc.autoTable({
         startY: pdfdoc.lastAutoTable.finalY + 15,
-        head: [['Date', 'Time In', 'Time Out', 'Accomplishment', 'Status']], 
+        head: [['Date', 'Time In', 'Time Out', 'Note', 'Status']], 
         body: reportData.attendance.length > 0
             ? reportData.attendance.map(a => [
             a.displayDate || formatTimestamp(a.timestamp),

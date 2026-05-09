@@ -300,18 +300,210 @@ window.openUploadModal = async (type, specificKey = null) => {
     modal.style.display = 'flex';
 };
 
+function dataUriToBlobUrl(dataUri) {
+    const [meta, base64Data] = dataUri.split(';base64,');
+    const mimeType  = meta.replace('data:', '');
+    const byteChars = atob(base64Data);
+    const byteArray = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] = byteChars.charCodeAt(i);
+    }
+    const blob = new Blob([byteArray], { type: mimeType });
+    return URL.createObjectURL(blob);
+}
+ 
+/**
+ * Extracts the MIME type from a data URI.
+ * @param {string} dataUri
+ * @returns {string}  e.g. "application/pdf", "image/jpeg"
+ */
+function getMimeType(dataUri) {
+    const match = dataUri.match(/^data:([^;]+);/);
+    return match ? match[1] : '';
+}
+ 
+// Track the current blob URL so we can revoke it when the modal closes
+// (prevents memory leaks from large PDF blobs).
+let _currentBlobUrl = null;
+ 
+/**
+ * Fixed previewDoc — handles PDF, image, and unsupported file types.
+ *
+ * @param {string} docId  The docId stored in currentStudentDocs
+ */
 window.previewDoc = (docId) => {
     const modal     = document.getElementById('previewModal');
     const container = document.getElementById('previewContainer');
-    // Find the document by docId
+ 
+    if (!modal || !container) {
+        console.error('[previewDoc] Modal or container element not found.');
+        return;
+    }
+ 
     const docData = Object.values(currentStudentDocs).find(d => d.docId === docId);
+ 
     if (!docData?.fileData) {
         alert('No file available to preview.');
         return;
     }
-    container.innerHTML = `<iframe src="${docData.fileData}" width="100%" height="100%" frameborder="0"></iframe>`;
+ 
+    // Revoke any previous blob URL to free memory
+    if (_currentBlobUrl) {
+        URL.revokeObjectURL(_currentBlobUrl);
+        _currentBlobUrl = null;
+    }
+ 
+    // Clear previous content
+    container.innerHTML = '';
+    container.className = ''; // reset is-image class
+ 
+    const mimeType = getMimeType(docData.fileData);
+ 
+    // ── IMAGES (JPG, PNG, GIF, WEBP) ─────────────────────────
+    if (mimeType.startsWith('image/')) {
+        container.classList.add('is-image');
+ 
+        const img = document.createElement('img');
+        img.src       = docData.fileData;   // data URI is fine for images
+        img.alt       = docData.fileName || 'Preview';
+        img.className = 'preview-img';
+ 
+        // Remove old inline styles that might constrain the image
+        img.style.maxWidth = '100%';
+ 
+        container.appendChild(img);
+        modal.style.display = 'flex';
+        return;
+    }
+ 
+    // ── PDFs ──────────────────────────────────────────────────
+    if (mimeType === 'application/pdf') {
+        // Convert data URI → Blob URL for iOS Safari compatibility.
+        // data: URIs for PDFs render blank in all iOS browsers.
+        // Blob URLs work correctly everywhere.
+        try {
+            _currentBlobUrl = dataUriToBlobUrl(docData.fileData);
+        } catch (err) {
+            console.error('[previewDoc] Blob URL creation failed:', err);
+            _currentBlobUrl = docData.fileData; // fallback to data URI
+        }
+ 
+        // Use <embed> instead of <iframe> for PDFs.
+        // <embed> is the W3C-recommended element for PDF embedding
+        // and has better multi-page support in Chrome and Firefox.
+        // It also respects the container's CSS dimensions properly.
+        const embed = document.createElement('embed');
+        embed.src   = _currentBlobUrl;
+        embed.type  = 'application/pdf';
+        embed.style.cssText = 'width:100%;height:100%;border:none;';
+ 
+        // iOS fallback: <embed> also doesn't work on iOS Safari.
+        // Show a download link inside the container alongside the embed.
+        const iosFallback = document.createElement('div');
+        iosFallback.className = 'ios-pdf-fallback';
+        iosFallback.style.cssText = `
+            display: none;
+            padding: 20px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+        `;
+        iosFallback.innerHTML = `
+            <p style="margin-bottom:12px;">
+                📱 PDF preview is not supported on this device's browser.
+            </p>
+            <a href="${_currentBlobUrl}"
+               download="${docData.fileName || 'document.pdf'}"
+               style="
+                   display:inline-block;
+                   padding:10px 20px;
+                   background:var(--brand-gold);
+                   color:#000;
+                   border-radius:8px;
+                   text-decoration:none;
+                   font-weight:700;
+               ">
+               ⬇ Download PDF
+            </a>`;
+ 
+        // Detect iOS (all iOS browsers use WebKit and can't embed PDFs)
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+ 
+        if (isIOS) {
+            // On iOS, skip the embed and only show the download link
+            iosFallback.style.display = 'block';
+            container.appendChild(iosFallback);
+        } else {
+            container.appendChild(embed);
+            container.appendChild(iosFallback); // hidden, won't show on desktop
+        }
+ 
+        modal.style.display = 'flex';
+        return;
+    }
+ 
+    // ── UNSUPPORTED FORMATS (DOCX, XLSX, PPTX, etc.) ─────────
+    // Browsers cannot render Office documents natively.
+    // Show a download button instead of a blank iframe.
+    const fileName = docData.fileName || 'document';
+ 
+    try {
+        _currentBlobUrl = dataUriToBlobUrl(docData.fileData);
+    } catch {
+        _currentBlobUrl = docData.fileData;
+    }
+ 
+    container.classList.add('is-image'); // use static positioning
+    container.innerHTML = `
+        <div style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+            gap: 16px;
+            height: 100%;
+            min-height: 200px;
+        ">
+            <div style="font-size: 3rem;">📄</div>
+            <p style="color: var(--text-primary); font-weight: 600;">
+                ${fileName}
+            </p>
+            <p style="color: var(--text-secondary); font-size: 0.84rem;">
+                This file type (${mimeType || 'unknown'}) cannot be previewed in the browser.
+            </p>
+            <a href="${_currentBlobUrl}"
+               download="${fileName}"
+               style="
+                   padding: 10px 24px;
+                   background: var(--brand-gold);
+                   color: #000;
+                   border-radius: 8px;
+                   text-decoration: none;
+                   font-weight: 700;
+                   font-size: 0.9rem;
+               ">
+               ⬇ Download File
+            </a>
+        </div>`;
+ 
     modal.style.display = 'flex';
 };
+
+document.getElementById('btn-close-preview')?.addEventListener('click', () => {
+    document.getElementById('previewModal').style.display = 'none';
+    if (_currentBlobUrl) {
+        URL.revokeObjectURL(_currentBlobUrl);
+        _currentBlobUrl = null;
+    }
+    const container = document.getElementById('previewContainer');
+    if (container) {
+        container.innerHTML = '';
+        container.className = '';
+    }
+});
 
 document.getElementById('btn-cancel-upload').onclick = () => {
     document.getElementById('uploadModal').style.display = 'none';

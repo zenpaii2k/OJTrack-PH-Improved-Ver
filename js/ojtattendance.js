@@ -98,6 +98,22 @@ async function loadUserProfile(user) {
             parseFloat(userData.requiredHours) || 600
         );
 
+        const completed = parseFloat(userData.hoursCompleted) || 0;
+        const required  = parseFloat(userData.requiredHours) || 600;
+
+        if (completed >= required) {
+            const submitBtn = document.getElementById('submit-log-btn');
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '✅ OJT Hours Completed';
+            }
+
+            showError(
+                `You already completed your required ${required} OJT hours.`
+            );
+        }
+
         return true; 
 
     } catch (e) {
@@ -209,14 +225,36 @@ function setupForm(user) {
                 throw new Error("User data not found.");
             }
 
-            const userData = userSnap.data();
+            userData = userSnap.data();
             console.log("USER DATA:", userData);
 
             const batchId = userData?.batchId || userData?.batch || null;
-            console.log("BATCH ID:", batchId);
+
+            const completedHours = parseFloat(userData?.hoursCompleted) || 0;
+            const requiredHours  = parseFloat(userData?.requiredHours) || 600;
+
+            if (completedHours >= requiredHours) {
+
+                showError(
+                    `You have already completed your required ${requiredHours} OJT hours. Attendance submission is now disabled.`
+                );
+
+                alert(
+                    `OJT requirement completed.\n\nYou already reached ${completedHours} / ${requiredHours} hours.`
+                );
+
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = '✅ OJT Completed!';
+                }
+
+                return;
+            }
+
+            const batchRef = doc(db, "batches", batchId);
 
             if (!batchId) {
-                showError("You cannot log attendance yet. No adviser has assigned you to a batch.");
+                showError("No adviser batch assigned.");
                 
                 if (btn) {
                     btn.disabled = false;
@@ -226,7 +264,6 @@ function setupForm(user) {
                 return;
             }
 
-            const batchRef = doc(db, "batches", batchId);
             const batchSnap = await getDoc(batchRef);
 
             if (!batchSnap.exists()) {
@@ -260,9 +297,8 @@ function setupForm(user) {
                 if (file.size > MAX_SIZE) {
                     alert("File too large. Maximum allowed size is 5MB.");
 
-                    // 🔧 restore button state
                     if (btn) {
-                        btn.disabled = false;
+                        btn.disabled = true;
                         btn.textContent = '🕒 Submit Attendance Log';
                     }
 
@@ -293,6 +329,8 @@ function setupForm(user) {
                 );
             }
 
+            alert("Attendance logged successfully.");
+
             form.reset();
 
             document.getElementById('file-name-text') &&
@@ -310,12 +348,22 @@ function setupForm(user) {
                 } else {
                     showError('Failed to submit. Please try again.');
                 }
-            }  finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = '🕒 Submit Attendance Log';
+            }  
+
+            finally {
+                const latestCompleted = parseFloat(userData?.hoursCompleted) || 0;
+                const latestRequired  = parseFloat(userData?.requiredHours) || 600;
+
+                if (btn) {
+                    if (latestCompleted >= latestRequired) {
+                        btn.disabled = true;
+                        btn.textContent = '✅ OJT Hours Completed';
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = '🕒 Submit Attendance Log';
+                    }
+                }
             }
-        }
     });
 }
 
@@ -460,44 +508,20 @@ function listenToAttendanceLogs(uid) {
             const hasFile = log.attachment;
 
             return `
-                <div class="log-entry" style="
-                    display:grid;
-                    grid-template-columns: 1.2fr 0.8fr 0.8fr 0.6fr 1fr 0.6fr;
-                    align-items:center;
-                    gap:10px;
-                    padding:10px 0;
-                    border-bottom:1px solid rgba(255,255,255,0.05);
-                ">
-
-                    <div class="col-date">${date}</div>
-                    <div class="col-in">${tIn}</div>
-                    <div class="col-out">${tOut}</div>
-                    <div class="col-hours" style="color:var(--brand-gold); font-weight:700;">
-                        ${hrsStr}
-                    </div>
-
-                    <div class="col-status">
-                        ${badge}
-                    </div>
-
-                    <div class="col-file">
-                        ${hasFile 
-                            ? `<button class="view-btn" onclick="openAttachmentById('${sanitizeText(d.id)}')">View</button>`
-                            : '<span class="no-file">—</span>'}
-                    </div>
-
+            <div class="log-entry">
+                <div class="col-date">${date}</div>
+                <div class="col-in">${tIn}</div>
+                <div class="col-out">${tOut}</div>
+                <div class="col-hours">${hrsStr}</div>
+                <div class="col-status">${badge}</div>
+                <div class="col-file">
+                    ${hasFile
+                        ? `<button class="view-btn" data-id="${sanitizeText(d.id)}">View</button>`
+                        : '<span class="no-file">—</span>'}
                 </div>
-
-                ${note ? `
-                <div style="
-                    font-size:0.78rem;
-                    color:var(--text-muted);
-                    padding:4px 0 10px 0;
-                    margin-left:2px;
-                ">
-                📝 ${note}
-                </div>` : ''}
-                `;
+            </div>
+            ${note ? `<div class="log-note">📝 ${note}</div>` : ''}
+        `;
         }).join('');
 
         window._attendanceLogs = {};

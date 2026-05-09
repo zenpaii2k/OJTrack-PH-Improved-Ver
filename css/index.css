@@ -840,8 +840,8 @@ html.light-theme .mock-badge.gold-badge {
 }
 
 .input-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 14px;
 }
 

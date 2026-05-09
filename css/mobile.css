@@ -1,0 +1,355 @@
+.mobile-bottom-nav {
+    display: none; /* hidden on desktop */
+}
+
+@media (max-width: 600px) {
+    /* Show bottom nav */
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 300;
+        background: var(--bg-surface);
+        border-top: 1px solid var(--border);
+        justify-content: space-around;
+        align-items: stretch;
+        height: 60px;
+        padding-bottom: env(safe-area-inset-bottom); /* iPhone notch */
+    }
+
+    .mob-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        gap: 2px;
+        text-decoration: none;
+        color: var(--text-secondary);
+        font-size: 0.6rem;
+        font-weight: 600;
+        padding: 6px 4px;
+        transition: color 0.15s, background 0.15s;
+        border-radius: 0;
+    }
+
+    .mob-nav-item span {
+        font-size: 0.58rem;
+        line-height: 1;
+    }
+
+    /* emoji icon size */
+    .mob-nav-item::before {
+        font-size: 1.3rem;
+        line-height: 1;
+    }
+
+    .mob-nav-item:hover,
+    .mob-nav-item.active {
+        color: var(--brand-gold);
+        background: var(--brand-gold-dim);
+    }
+
+    /* Add bottom padding to main content so it doesn't hide behind the bar */
+    .main-wrapper {
+        padding-bottom: calc(60px + env(safe-area-inset-bottom));
+    }
+
+    /* Hamburger button in header to open a slide-over for logout/profile */
+    .mobile-header-menu-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        color: var(--text-primary);
+        font-size: 1.1rem;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .notif-dropdown {
+        width: calc(100vw - 24px);   /* full width minus margins */
+        right: -8px;                  /* re-anchor to viewport right */
+        left: auto;
+    }
+
+    .profile-pop {
+        width: calc(100vw - 24px);
+        right: -8px;
+        left: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-header {
+        padding: 0 12px;
+    }
+
+    /* Hide the name text inside the pill, show only avatar circle */
+    .profile-pill > span:first-child {       /* the name span */
+        display: none;
+    }
+
+    .profile-pill {
+        padding: 4px;
+        border-radius: 50%;
+        min-width: 38px;
+        height: 38px;
+        justify-content: center;
+    }
+
+    /* Shrink greeting text */
+    .page-title-area h3 {
+        font-size: 0.95rem;
+    }
+
+    .page-title-area p {
+        display: none;
+    }
+
+    .header-tools {
+        gap: 8px;
+    }
+}
+
+@media (max-width: 600px) {
+    /* ojtattendance.js renders .log-entry with inline grid styles.
+       We override that inline grid with a stacked card layout. */
+    .log-entry,
+    div[class*="log-entry"],
+    div[style*="grid-template-columns: 1.2fr"] {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+        padding: 12px !important;
+        background: var(--bg-elevated);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border) !important;
+        margin-bottom: 8px;
+    }
+
+    .col-date {
+        font-weight: 700;
+        font-size: 0.88rem;
+        color: var(--text-primary);
+    }
+
+    .col-in,
+    .col-out {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        display: inline;
+    }
+
+    /* Put Time In + Time Out on the same row */
+    .col-in::after {
+        content: " → ";
+        color: var(--text-muted);
+    }
+
+    .col-status {
+        align-self: flex-start;
+    }
+
+    /* Override the ojtattendance.css static .log-entry too */
+    div.log-entry {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .stats-4col,
+    .stats-3col {
+        grid-template-columns: 1fr !important;
+    }
+
+    .stat-card {
+        padding: 14px 16px;
+    }
+
+    .stat-value {
+        font-size: 1.6rem;
+    }
+}
+
+@media (max-width: 600px) {
+    /* Override the !important wide-modal */
+    .wide-modal,
+    .modal-card {
+        width: 96vw !important;
+        max-width: 96vw !important;
+        padding: 18px !important;
+        border-radius: 16px !important;
+    }
+
+    .modal-overlay {
+        padding: 12px !important;
+        align-items: flex-end;          /* slide up from bottom on mobile */
+    }
+
+    /* Bottom-sheet style on mobile */
+    .modal-card {
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+        border-radius: 20px 20px 0 0 !important;
+        max-height: 92vh !important;
+        overflow-y: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .dashboard-table th,
+    .dashboard-table td {
+        font-size: 0.75rem;
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+
+    /* Hide less-critical columns on mobile */
+    .dashboard-table th:nth-child(6),
+    .dashboard-table td:nth-child(6) {
+        display: none;      /* hide "File" column on small screens */
+    }
+}
+
+@media (max-width: 600px) {
+    .time-container,
+    .input-grid,
+    .sup-details-grid,
+    .info-stats-grid,
+    .report-grid,
+    .profile-summary-card {
+        grid-template-columns: 1fr !important;
+    }
+
+    .time-box {
+        padding: 12px;
+    }
+
+    .digital-clock input[type="number"] {
+        width: 42px;
+        font-size: 1.2rem;
+        padding: 4px 2px;
+    }
+}
+
+@media (max-width: 600px) {
+    /* Hide date submitted column */
+    .checklist-table th:nth-child(2),
+    .checklist-table td:nth-child(2) {
+        display: none;
+    }
+
+    .checklist-table th:nth-child(3),
+    .checklist-table td:nth-child(3),
+    .checklist-table th:nth-child(4),
+    .checklist-table td:nth-child(4) {
+        font-size: 0.75rem;
+        padding: 8px 10px;
+    }
+
+    .row-actions {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .btn-icon-view,
+    .btn-icon-upload {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 600px) {
+    .main-content-wrapper,
+    .reports-layout {
+        grid-template-columns: 1fr !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    .student-sidebar,
+    .reports-sidebar {
+        height: 200px !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border);
+        overflow-y: auto;
+    }
+
+    .checklist-verification,
+    .report-detail-panel {
+        padding: 14px !important;
+        overflow-y: visible !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .settings-sidebar {
+        position: static !important;
+    }
+
+    .settings-list {
+        flex-direction: row !important;
+        overflow-x: auto;
+        gap: 4px;
+        padding-bottom: 4px;
+    }
+
+    .settings-list .nav-item {
+        flex-shrink: 0;
+        font-size: 0.78rem;
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 600px) {
+    .batch-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .batch-action-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .batch-search-wrap {
+        max-width: 100%;
+    }
+
+    .batch-stat-row {
+        justify-content: space-between;
+    }
+
+    .invite-row {
+        flex-direction: column;
+    }
+
+    .invite-email-input {
+        width: 100%;
+        min-width: unset;
+    }
+}
+
+@media (max-width: 600px) {
+    .reg-panel-right {
+        padding: 24px 16px 80px !important; /* bottom for mobile nav */
+    }
+
+    .role-selector-main {
+        grid-template-columns: 1fr !important;
+    }
+
+    .checkbox-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}

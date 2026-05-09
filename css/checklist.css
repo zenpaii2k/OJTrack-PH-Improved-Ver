@@ -410,8 +410,32 @@
     flex: 1;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    overflow: hidden;
+    overflow: auto;                    /* was: hidden */
     background: var(--bg-elevated);
+    min-height: 300px;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+}
+
+#previewContainer iframe,
+#previewContainer embed {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+#previewContainer.is-image {
+    position: static;
+    overflow: auto;
+}
+
+#previewContainer.is-image img.preview-img {
+    position: static;
+    width: 100%;
+    height: auto;
+    display: block;
 }
 
 .no-batch-mode .btn-icon-upload {

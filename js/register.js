@@ -532,8 +532,8 @@ function validateForm() {
         if (!course)  { showFieldError('course-error',  'Please select a course.');   valid = false; }
         if (!section) { showFieldError('section-error', 'Section is required.');      valid = false; }
         if (!company) { showFieldError('company-error', 'Company name is required.'); valid = false; }
-        if (!hours || hours < 100 || hours > 2000) {
-            showFieldError('hours-error', 'Enter valid hours (100–2000).'); valid = false;
+        if (!hours || hours < 10 || hours > 2000) {
+            showFieldError('hours-error', 'Enter valid hours (10–2000).'); valid = false;
         }
     }
 
