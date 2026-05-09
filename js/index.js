@@ -164,21 +164,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                forgotPasswordLink.textContent = "Checking...";
+                forgotPasswordLink.textContent = "Sending...";
                 forgotPasswordLink.style.pointerEvents = "none";
 
-                const q = query(collection(db, "users"), where("email", "==", email));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    alert("No account found with this email.");
-                    return;
-                }
-
-                forgotPasswordLink.textContent = "Sending...";
                 await sendPasswordResetEmail(auth, email);
 
-                alert("Password reset email sent! Check your inbox.");
+                alert("If an account exists, a reset email has been sent.");
             } catch (error) {
                 console.error("Reset Error:", error);
                 alert("Error: " + error.message);

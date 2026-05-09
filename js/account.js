@@ -229,7 +229,7 @@ async function syncBatchData(batchId, myUid) {
                 const courses = s.assignedCourses || [];
                 setText('sup-class',       Array.isArray(courses) ? courses.join(', ') : courses || '—');
                 setText('batch-sup-name',  supName);
-                setText('batch-sup-courses', Array.isArray(courses) ? courses[0] || '—' : '—');
+                setText('batch-sup-courses', Array.isArray(courses) ? courses.join(', ') : courses || '—');
             }
         }
 
