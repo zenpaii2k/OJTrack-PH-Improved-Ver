@@ -599,42 +599,6 @@ async function cleanInvalidStudents(batchId, studentUids) {
 }
 
 // ─── REMOVE STUDENT ───────────────────────────────────────────
-/**
- * FIX 1 — batch: "" → batch: null, supervisorId: "" → supervisorId: null
- *
- * ORIGINAL BUG:
- *   await updateDoc(userRef, { batch: "", supervisorId: "" })
- *
- *   Empty strings are the wrong sentinel value here. The student
- *   dashboard checks: if (userData.batch) { ... }  — "" is falsy in
- *   JS, so this seems to work. But Firestore field-level checks in
- *   rules use field existence differently from empty-string presence,
- *   and the register.js invite flow uses:
- *       batch: inviteData?.batchId ?? null
- *   which writes null. Mixing "" and null for the same semantic
- *   (no batch assigned) causes inconsistent state across documents.
- *
- *   Additionally, the Firestore rule for adviser updating user docs is:
- *     allow update: if isAdviser()
- *       && affectedKeys().hasOnly(['batch', 'supervisorId', 'updatedAt'])
- *   The original write doesn't include updatedAt but the rule allows
- *   a subset of those keys, so the write passes. Adding updatedAt is
- *   best practice for audit trails.
- *
- * FIX 2 — Revoke pending invites for the removed student's email.
- *
- * ORIGINAL BUG:
- *   After removing a student, no existing pending invite links were
- *   invalidated. If the adviser had previously generated an invite
- *   link for this student, that link remained valid indefinitely.
- *   The removed student (or anyone with the URL) could click the old
- *   link and rejoin the batch without a new invite from the adviser.
- *
- * FIX:
- *   After the batch array removal and user-doc clearing, query the
- *   invitations collection for any pending invite matching this
- *   student's email + this batch, and revoke all of them.
- */
 window.removeStudent = async function(uid) {
     if (!activeBatchId) {
         alert("No active batch selected.");
@@ -663,26 +627,14 @@ window.removeStudent = async function(uid) {
         });
 
         // STEP 2: Clear batch fields on the student's user document.
-        //
-        // FIX 1: Use null instead of "" so the entire codebase uses a
-        //         consistent sentinel (null = "no batch assigned").
-        //         The register.js invite flow also writes null, so both
-        //         sides now agree on the same value.
-        //
-        // This is allowed by the Firestore rule:
-        //   allow update: if isAdviser()
-        //     && affectedKeys().hasOnly(['batch', 'supervisorId', 'updatedAt'])
         await updateDoc(userRef, {
             batch:        null,
             supervisorId: null,
             updatedAt:    serverTimestamp()
         });
 
-        // STEP 3: Revoke all pending invites for this student's email
-        //         on this batch so old invite links cannot be reused.
-        //
-        // FIX 2: Fetch the student's email from Firestore (we already
-        //         read the user doc above, so this is from cache effectively).
+        // STEP 3: Revoke all pending invites for this student's email on this batch so old invite links cannot be reused.
+
         await revokeStudentInvites(uid, activeBatchId);
 
         alert("Student removed successfully.");
@@ -703,14 +655,7 @@ window.removeStudent = async function(uid) {
         alert("Failed to remove student. Please check your connection and try again.");
     }
 };
-
-/**
- * Revokes all pending invites for a given student email + batch combination.
- * Called after removeStudent() so old invite links cannot be reused.
- *
- * @param {string} studentUid   - UID of the student being removed
- * @param {string} batchId      - ID of the batch they are being removed from
- */
+ 
 async function revokeStudentInvites(studentUid, batchId) {
     try {
         // Fetch the student's email from their user document
@@ -746,19 +691,7 @@ async function revokeStudentInvites(studentUid, batchId) {
 }
 
 // ─── INTERNAL: Remove student from ALL batches (used in cleanup) ──
-/**
- * FIX: Also clears the user document's batch fields.
- *
- * ORIGINAL BUG:
- *   The original removeStudentFromAllBatches() only called arrayRemove
- *   on every batch document but never touched the user document.
- *   The user's batch and supervisorId fields remained pointing to the
- *   old batch, causing stale data on the student dashboard.
- *
- * NOTE: This internal function is not currently called by any UI path
- *   (only by register.js as a cleanup step before applyInvite). It is
- *   kept here for completeness and future use.
- */
+
 async function removeStudentFromAllBatches(uid) {
     const q    = query(collection(db, "batches"), where("studentUids", "array-contains", uid));
     const snap = await getDocs(q);
@@ -772,8 +705,6 @@ async function removeStudentFromAllBatches(uid) {
         )
     );
 
-    // FIX: Also clear the user document's batch fields so the student's
-    //       dashboard reflects the removal immediately.
     try {
         const userSnap = await getDoc(doc(db, "users", uid));
         if (userSnap.exists() && (userSnap.data().batch || userSnap.data().supervisorId)) {

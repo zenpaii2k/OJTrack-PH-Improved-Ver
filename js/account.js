@@ -200,7 +200,6 @@ async function initializeApp(user) {
                 }
             }
 
-            // Optional: still show batch fallback UI
             console.log("No batch assigned — progress hidden.");
         }
 

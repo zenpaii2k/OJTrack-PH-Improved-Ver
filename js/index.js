@@ -274,7 +274,7 @@ const openLegalModal = (type) => {
     if (modal && legalData[type]) {
         title.innerText = legalData[type].title;
         content.innerHTML = legalData[type].content;
-        modal.style.display = 'flex'; // Using flex to center like the login modal
+        modal.style.display = 'flex'; 
     }
 };
 

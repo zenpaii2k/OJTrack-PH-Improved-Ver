@@ -99,7 +99,7 @@ async function initDashboard(user) {
                     id: d.id,
                     ...data,
                     type: "attendance",
-                    status: normalizeStatus(data.status) // normalized only for logic
+                    status: normalizeStatus(data.status) 
                 };
             });
 

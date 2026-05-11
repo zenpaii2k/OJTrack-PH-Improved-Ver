@@ -429,7 +429,7 @@ function generateAdviserPreview(data) {
         }
     });
 
-   // 6. SIGNATURE SECTION (move down properly)
+   // 6. SIGNATURE SECTION
     const signY = pdf.lastAutoTable.finalY + 20;
 
     // ─── CERTIFICATION MESSAGE (FIXED POSITION) ───

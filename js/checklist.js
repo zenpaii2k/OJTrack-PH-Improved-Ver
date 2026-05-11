@@ -312,11 +312,6 @@ function dataUriToBlobUrl(dataUri) {
     return URL.createObjectURL(blob);
 }
  
-/**
- * Extracts the MIME type from a data URI.
- * @param {string} dataUri
- * @returns {string}  e.g. "application/pdf", "image/jpeg"
- */
 function getMimeType(dataUri) {
     const match = dataUri.match(/^data:([^;]+);/);
     return match ? match[1] : '';
@@ -378,27 +373,20 @@ window.previewDoc = (docId) => {
  
     // ── PDFs ──────────────────────────────────────────────────
     if (mimeType === 'application/pdf') {
-        // Convert data URI → Blob URL for iOS Safari compatibility.
-        // data: URIs for PDFs render blank in all iOS browsers.
-        // Blob URLs work correctly everywhere.
+
         try {
             _currentBlobUrl = dataUriToBlobUrl(docData.fileData);
         } catch (err) {
             console.error('[previewDoc] Blob URL creation failed:', err);
             _currentBlobUrl = docData.fileData; // fallback to data URI
         }
- 
-        // Use <embed> instead of <iframe> for PDFs.
-        // <embed> is the W3C-recommended element for PDF embedding
-        // and has better multi-page support in Chrome and Firefox.
-        // It also respects the container's CSS dimensions properly.
+
         const embed = document.createElement('embed');
         embed.src   = _currentBlobUrl;
         embed.type  = 'application/pdf';
         embed.style.cssText = 'width:100%;height:100%;border:none;';
  
         // iOS fallback: <embed> also doesn't work on iOS Safari.
-        // Show a download link inside the container alongside the embed.
         const iosFallback = document.createElement('div');
         iosFallback.className = 'ios-pdf-fallback';
         iosFallback.style.cssText = `
@@ -444,8 +432,6 @@ window.previewDoc = (docId) => {
     }
  
     // ── UNSUPPORTED FORMATS (DOCX, XLSX, PPTX, etc.) ─────────
-    // Browsers cannot render Office documents natively.
-    // Show a download button instead of a blank iframe.
     const fileName = docData.fileName || 'document';
  
     try {

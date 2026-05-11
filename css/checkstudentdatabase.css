@@ -176,6 +176,7 @@
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+    margin-top: 30px;
     padding: 20px;
 }
 

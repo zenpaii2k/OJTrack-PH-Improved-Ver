@@ -3,7 +3,7 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     onAuthStateChanged,
-    fetchSignInMethodsForEmail   // ← ADDED: works without auth, replaces Firestore check
+    fetchSignInMethodsForEmail   
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
     doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp,
@@ -272,7 +272,6 @@ async function handleReturningStudent(email) {
         const userCred = await signInWithEmailAndPassword(auth, email, password);
         const uid      = userCred.user.uid;
 
-        // Force token refresh so Firestore rules evaluate correctly
         await userCred.user.getIdToken(true);
 
         await applyInvite(uid);

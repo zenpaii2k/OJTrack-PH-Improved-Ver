@@ -314,7 +314,7 @@ window.openReviewModal = (docId, fileData, status, fileName, formKey) => {
     const remarksField = document.getElementById('supervisorRemarks');
     const previewArea = document.getElementById('modal-preview-area');
 
-    const docNameDisplay = document.getElementById('modal-doc-name'); // <--- Select the P tag
+    const docNameDisplay = document.getElementById('modal-doc-name');
 
     if (docNameDisplay) {
         docNameDisplay.innerText = fileName; 

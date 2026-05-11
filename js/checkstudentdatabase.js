@@ -389,7 +389,7 @@ async function viewStudentDetails(docId, studentData) {
                         <div style="flex:1; min-width:0;">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <strong style="color:#CC9704 font-size: 1.1rem;">${log.displayDate}</strong>
-                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#90EE90' : status === 'Rejected' ? '#e74c3c' : '#CC9704'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
+                                <span style="font-size:0.65rem; padding:3px 8px; border-radius:12px; background:${status === 'Approved' ? '#2ecc71' : status === 'Rejected' ? '#e74c3c' : '#CC9704'}; color:${status === 'Pending' ? '#000' : '#fff'}; font-weight:bold;">
                                     ${status.toUpperCase()}
                                 </span>
                             </div>

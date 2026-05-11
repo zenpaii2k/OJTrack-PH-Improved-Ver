@@ -16,7 +16,7 @@
         justify-content: space-around;
         align-items: stretch;
         height: 60px;
-        padding-bottom: env(safe-area-inset-bottom); /* iPhone notch */
+        padding-bottom: env(safe-area-inset-bottom); 
     }
 
     .mob-nav-item {
@@ -52,12 +52,16 @@
         background: var(--brand-gold-dim);
     }
 
-    /* Add bottom padding to main content so it doesn't hide behind the bar */
-    .main-wrapper {
+    .main-wrapper:not(:has(.main-layout)) {
         padding-bottom: calc(60px + env(safe-area-inset-bottom));
     }
 
-    /* Hamburger button in header to open a slide-over for logout/profile */
+    @supports not selector(:has(*)) {
+        .main-wrapper {
+            padding-bottom: calc(60px + env(safe-area-inset-bottom));
+        }
+    }
+
     .mobile-header-menu-btn {
         display: flex;
         align-items: center;
@@ -76,8 +80,8 @@
 
 @media (max-width: 480px) {
     .notif-dropdown {
-        width: calc(100vw - 24px);   /* full width minus margins */
-        right: -8px;                  /* re-anchor to viewport right */
+        width: calc(100vw - 24px); 
+        right: -8px;              
         left: auto;
     }
 
@@ -90,7 +94,8 @@
 
 @media (max-width: 480px) {
     .dashboard-header {
-        padding: 0 12px;
+        padding: 0 24px;
+        width: 100%;
     }
 
     /* Hide the name text inside the pill, show only avatar circle */
@@ -117,6 +122,13 @@
 
     .header-tools {
         gap: 8px;
+    }
+}
+
+@media (max-width: 320px) {
+    .dashboard-header {
+        padding: 0 24px;
+        width: 100%;
     }
 }
 
@@ -148,7 +160,6 @@
         display: inline;
     }
 
-    /* Put Time In + Time Out on the same row */
     .col-in::after {
         content: " → ";
         color: var(--text-muted);
@@ -158,7 +169,6 @@
         align-self: flex-start;
     }
 
-    /* Override the ojtattendance.css static .log-entry too */
     div.log-entry {
         grid-template-columns: 1fr !important;
     }
@@ -180,7 +190,6 @@
 }
 
 @media (max-width: 600px) {
-    /* Override the !important wide-modal */
     .wide-modal,
     .modal-card {
         width: 96vw !important;
@@ -191,7 +200,7 @@
 
     .modal-overlay {
         padding: 12px !important;
-        align-items: flex-end;          /* slide up from bottom on mobile */
+        align-items: flex-end;   
     }
 
     /* Bottom-sheet style on mobile */
@@ -215,7 +224,7 @@
     /* Hide less-critical columns on mobile */
     .dashboard-table th:nth-child(6),
     .dashboard-table td:nth-child(6) {
-        display: none;      /* hide "File" column on small screens */
+        display: none;  
     }
 }
 
@@ -241,7 +250,6 @@
 }
 
 @media (max-width: 600px) {
-    /* Hide date submitted column */
     .checklist-table th:nth-child(2),
     .checklist-table td:nth-child(2) {
         display: none;
