@@ -94,8 +94,7 @@
 
 @media (max-width: 480px) {
     .dashboard-header {
-        padding: 0 24px;
-        width: 100%;
+         padding: 0 8px;
     }
 
     /* Hide the name text inside the pill, show only avatar circle */
@@ -121,14 +120,17 @@
     }
 
     .header-tools {
-        gap: 8px;
+        gap: 4px;
     }
 }
 
 @media (max-width: 320px) {
     .dashboard-header {
-        padding: 0 24px;
-        width: 100%;
+        padding: 0 12px;
+    }
+
+    .modal-overlay {
+        justify-content: center;
     }
 }
 
@@ -200,7 +202,7 @@
 
     .modal-overlay {
         padding: 12px !important;
-        align-items: flex-end;   
+        align-items: flex-end; 
     }
 
     /* Bottom-sheet style on mobile */
