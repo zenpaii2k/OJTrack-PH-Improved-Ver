@@ -38,7 +38,7 @@ OJTrack PH was developed to simplify traditional internship monitoring processes
 
 **Nous R&D**
 
-A team, in pre-requisite requirements for Technopreneurship in 2nd-year college, dedicated to developing practical digital solutions that improve accessibility, efficiency, and user experience. The main developer is me, @zenpaii2k!
+A team, in pre-requisite requirements for Technopreneurship in 2nd-year college, dedicated to developing practical digital solutions that improve accessibility, efficiency, and user experience. The main developer is me, @zenpaii2k! My groupmates are responsible for the UI design, while I did most of the logic, front-end and back-end integration. 
 
 ## Status
 
