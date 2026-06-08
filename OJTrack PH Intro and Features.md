@@ -1,6 +1,6 @@
 # OJTrack PH
 
-OJTrack PH is a web-based internship tracking system designed to help Filipino college students and OJT advisers manage internship progress more efficiently. The platform allows students to log internship hours, upload requirements, monitor completion progress, and generate reports digitally. Advisers can review submissions, provide feedback, and track student progress through a centralized dashboard.
+OJTrack PH is a web-based internship tracking system designed to help **Filipino college students** and **OJT advisers** manage internship progress more efficiently. The platform allows students to log internship hours, upload requirements, monitor completion progress, and generate reports digitally. Advisers can review submissions, provide feedback, and track student progress through a centralized dashboard.
 
 ## Features
 
@@ -38,7 +38,7 @@ OJTrack PH was developed to simplify traditional internship monitoring processes
 
 **Nous R&D**
 
-A team dedicated to developing practical digital solutions that improve accessibility, efficiency, and user experience. The main developer is me, @zenpaii2k! My groupmates are responsible for the UI design, while I did most of the logic, front-end and back-end integration. 
+A team dedicated to developing practical digital solutions that improve accessibility, efficiency, and user experience. The main developer is me, **@zenpaii2k**! My groupmates are responsible for the UI design, while I did most of the logic, front-end and back-end integration. 
 
 ## Status
 
